@@ -85,34 +85,39 @@
     └── 现有业务系统
 ```
 
-## 快速开始
+## 🚀 快速开始
 
-### 环境要求
-- Python 3.9+
-- Node.js 18+
-- Docker & Docker Compose
-- 8GB+ 内存
+### 📖 部署指南
 
-### 安装部署
+- **🚀 [5分钟快速启动](./QUICK_START.md)** - 最简单的部署方式
+- **📋 [详细部署指南](./DEPLOYMENT.md)** - 完整的生产环境部署
+- **🛠️ [生产环境指南](./scripts/production-deploy-guide.md)** - 企业级部署方案
+
+### ⚡ 一键部署
 
 ```bash
-# 1. 克隆项目
-git clone https://github.com/xiaoweizha/enterprise-rag.git
-cd enterprise-rag
+# 1. 获取代码
+git clone https://github.com/xiaoweizha/xiaoweizha.github.io.git
+cd xiaoweizha.github.io
 
-# 2. 安装依赖
-pip install -r requirements.txt
-npm install
+# 2. 配置环境
+cp .env.production .env
+# 编辑 .env 文件，设置 ANTHROPIC_AUTH_TOKEN
 
 # 3. 启动服务
-docker-compose up -d
+./scripts/start-services.sh core -d
+python3 main.py
 
-# 4. 初始化数据库
-python scripts/init_db.py
-
-# 5. 启动Web服务
-npm run dev
+# 4. 访问系统
+# 主页: http://localhost:8000
+# API: http://localhost:8000/docs
 ```
+
+### 💻 环境要求
+- Python 3.9+
+- Docker & Docker Compose
+- 8GB+ 内存（推荐16GB+）
+- Claude API密钥
 
 ### 配置说明
 
