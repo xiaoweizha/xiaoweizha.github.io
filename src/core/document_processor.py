@@ -539,8 +539,8 @@ class DocumentProcessor:
         """
         try:
             # 检查文本分割器
-            test_text = "这是一个测试文本。用于检查文档处理器的健康状态。"
-            chunks = self.text_splitter.split_text(test_text)
+            sample_text = "健康检查文本样本，验证文档处理器功能正常。"
+            chunks = self.text_splitter.split_text(sample_text)
 
             return {
                 "status": "healthy",

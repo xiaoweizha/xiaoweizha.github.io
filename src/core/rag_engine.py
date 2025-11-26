@@ -420,8 +420,8 @@ class RAGEngine:
         Returns:
             重排序后的结果
         """
-        # TODO: 实现重排序逻辑
-        # 这里可以集成专门的重排序模型，如BGE-reranker
+        # 当前返回原始检索结果
+        # 生产环境中可集成BGE-reranker等专业重排序模型
         return retrieval_result
 
     def _build_context(self, retrieval_result: RetrievalResult) -> str:

@@ -43,7 +43,6 @@ build/
 # Environment variables
 .env.local
 .env.development.local
-.env.test.local
 .env.production.local
 
 # IDE
@@ -92,7 +91,6 @@ nginx/logs/
 # Local configuration files
 config/local.yaml
 config/production.yaml
-config/development.yaml
 
 # SSL certificates
 ssl/

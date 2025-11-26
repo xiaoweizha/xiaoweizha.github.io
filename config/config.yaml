@@ -5,7 +5,7 @@ system:
   name: "企业RAG知识库"
   version: "1.0.0"
   debug: false
-  environment: "development"  # development, production, testing
+  environment: "production"  # production
   timezone: "Asia/Shanghai"
   language: "zh-CN"
 
@@ -20,10 +20,10 @@ server:
 # LLM配置
 llm:
   # 支持的提供商: openai, azure, anthropic, qianfan, tongyi, baichuan
-  provider: "openai"
-  model: "gpt-4-turbo"
-  api_key: "${OPENAI_API_KEY}"
-  api_base: "${OPENAI_API_BASE}"
+  provider: "anthropic"
+  model: "claude-3-5-sonnet-20241022"
+  api_key: "${ANTHROPIC_API_KEY}"
+  api_base: "${ANTHROPIC_BASE_URL}"
   temperature: 0.1
   max_tokens: 4096
   timeout: 60
@@ -210,15 +210,3 @@ performance:
     device_id: 0
     memory_fraction: 0.8
 
-# 开发配置
-development:
-  hot_reload: true
-  debug_sql: false
-  debug_api: true
-  mock_llm: false
-
-# 测试配置
-testing:
-  test_db_suffix: "_test"
-  mock_external_apis: true
-  preserve_test_data: false
