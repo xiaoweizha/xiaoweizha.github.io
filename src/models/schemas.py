@@ -7,7 +7,7 @@
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from pydantic import BaseModel, Field, validator
 import uuid
@@ -334,3 +334,34 @@ class BackupInfo(BaseModel):
     status: str = Field(..., description="备份状态")
     description: Optional[str] = Field(None, description="备份描述")
     metadata: Dict[str, Any] = Field(default_factory=dict, description="元数据")
+
+
+# ==================== 缺失的通用模型 ====================
+
+class APIResponse(BaseModel):
+    """通用API响应模型"""
+    success: bool = Field(True, description="是否成功")
+    message: str = Field("", description="响应消息")
+    data: Optional[Any] = Field(None, description="响应数据")
+    code: int = Field(200, description="响应代码")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="时间戳")
+
+
+class PaginatedResponse(BaseModel):
+    """分页响应模型"""
+    items: List[Any] = Field(default_factory=list, description="数据项")
+    total: int = Field(0, description="总数")
+    page: int = Field(1, description="页码")
+    size: int = Field(20, description="页大小")
+    pages: int = Field(0, description="总页数")
+
+
+class UsageStats(BaseModel):
+    """使用统计模型"""
+    period: str = Field(..., description="统计周期")
+    queries: int = Field(0, description="查询次数")
+    documents: int = Field(0, description="文档数量")
+    users: int = Field(0, description="用户数量")
+    storage_used: int = Field(0, description="存储使用量")
+    api_calls: int = Field(0, description="API调用次数")
+    created_at: datetime = Field(default_factory=datetime.utcnow, description="创建时间")

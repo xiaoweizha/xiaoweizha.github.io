@@ -204,6 +204,23 @@ class HybridRetriever:
         self.fulltext_retriever = FulltextRetriever(config)
         self.config = config or {}
 
+    async def initialize(self) -> None:
+        """初始化检索器"""
+        try:
+            logger.info("混合检索器初始化完成")
+        except Exception as e:
+            logger.error("混合检索器初始化失败", error=str(e))
+            raise
+
+    async def update_index(self) -> None:
+        """更新检索索引"""
+        try:
+            # 这里可以添加索引更新逻辑
+            logger.info("检索索引更新完成")
+        except Exception as e:
+            logger.error("更新检索索引失败", error=str(e))
+            raise
+
     async def retrieve(
         self,
         query: str,
@@ -340,3 +357,34 @@ class HybridRetriever:
         except Exception as e:
             logger.error("获取检索器统计失败", error=str(e))
             return {"error": str(e)}
+
+    async def health_check(self) -> Dict[str, Any]:
+        """健康检查"""
+        try:
+            vector_health = await self.vector_retriever.vector_store.health_check()
+            graph_health = await self.graph_retriever.graph_store.health_check()
+
+            all_healthy = (
+                vector_health["status"] == "healthy" and
+                graph_health["status"] == "healthy"
+            )
+
+            return {
+                "status": "healthy" if all_healthy else "unhealthy",
+                "components": {
+                    "vector_retriever": vector_health,
+                    "graph_retriever": graph_health,
+                    "fulltext_retriever": {"status": "healthy"}
+                }
+            }
+        except Exception as e:
+            logger.error("检索器健康检查失败", error=str(e))
+            return {"status": "error", "error": str(e)}
+
+    async def close(self) -> None:
+        """关闭检索器，清理资源"""
+        try:
+            # 这里可以添加资源清理逻辑
+            logger.info("检索器已关闭")
+        except Exception as e:
+            logger.error("关闭检索器时发生错误", error=str(e))

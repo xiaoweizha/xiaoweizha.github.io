@@ -15,8 +15,8 @@ def main():
 
     print("🚀 启动企业级RAG知识库系统")
     print("=" * 50)
-    print(f"环境: {config.system.environment}")
-    print(f"版本: {config.system.version}")
+    print(f"环境: {config.server.environment}")
+    print(f"版本: {config.system_version}")
     print(f"服务地址: http://{config.server.host}:{config.server.port}")
     print(f"API文档: http://{config.server.host}:{config.server.port}/docs")
     print("=" * 50)
@@ -27,7 +27,7 @@ def main():
         host=config.server.host,
         port=config.server.port,
         workers=1,  # 在生产环境中应该使用gunicorn等WSGI服务器
-        log_level=config.monitoring.logging.level.lower(),
+        log_level=config.monitoring.log_level.lower(),
         access_log=True,
         reload=False  # 生产环境关闭自动重载
     )

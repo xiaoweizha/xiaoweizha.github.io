@@ -13,6 +13,7 @@ from .document_processor import DocumentProcessor
 from .vector_store import VectorStore
 from .graph_store import GraphStore
 from .retriever import HybridRetriever
+from .retriever import RetrievalResult as RetrieverResult
 from .generator import ResponseGenerator
 from ..utils.config import get_config
 from ..utils.logger import get_logger
@@ -64,7 +65,7 @@ class RAGEngine:
         self.retriever = HybridRetriever(
             vector_store=self.vector_store,
             graph_store=self.graph_store,
-            mode=self.config.retrieval_mode
+            config={"retrieval_mode": self.config.retrieval_mode}
         )
         self.generator = ResponseGenerator()
 
@@ -218,19 +219,34 @@ class RAGEngine:
             )
 
             # 5. 构建最终响应
+            sources = []
+            for result in retrieval_result:
+                source_info = {
+                    "content": result.content,
+                    "score": result.score,
+                    "source": result.source,
+                    "metadata": result.metadata
+                }
+                if result.document_id:
+                    source_info["document_id"] = result.document_id
+                if result.chunk_id:
+                    source_info["chunk_id"] = result.chunk_id
+                sources.append(source_info)
+
             query_response = QueryResponse(
                 query=query,
                 answer=response.answer,
-                sources=retrieval_result.sources,
+                sources=sources,
                 context=context[:500],  # 截断上下文用于显示
                 retrieval_mode=retrieval_mode,
                 confidence=response.confidence,
                 tokens_used=response.tokens_used,
                 response_time=response.response_time,
                 metadata={
-                    "retrieved_chunks": len(retrieval_result.chunks),
-                    "graph_entities": len(retrieval_result.entities),
-                    "graph_relations": len(retrieval_result.relations)
+                    "retrieved_results": len(retrieval_result),
+                    "vector_results": len([r for r in retrieval_result if r.source == "vector"]),
+                    "graph_results": len([r for r in retrieval_result if r.source == "graph"]),
+                    "fulltext_results": len([r for r in retrieval_result if r.source == "fulltext"])
                 }
             )
 
@@ -406,8 +422,8 @@ class RAGEngine:
     async def _rerank_results(
         self,
         query: str,
-        retrieval_result: RetrievalResult
-    ) -> RetrievalResult:
+        retrieval_result: List[RetrieverResult]
+    ) -> List[RetrieverResult]:
         """
         重排序检索结果
 
@@ -422,7 +438,7 @@ class RAGEngine:
         # 生产环境中可集成BGE-reranker等专业重排序模型
         return retrieval_result
 
-    def _build_context(self, retrieval_result: RetrievalResult) -> str:
+    def _build_context(self, retrieval_result: List[RetrieverResult]) -> str:
         """
         构建上下文
 
@@ -434,21 +450,16 @@ class RAGEngine:
         """
         context_parts = []
 
-        # 添加文档块内容
-        for chunk in retrieval_result.chunks[:self.config.rerank_top_k]:
-            context_parts.append(f"文档片段：{chunk.content}")
-
-        # 添加知识图谱信息
-        if retrieval_result.entities:
-            entities_str = "、".join([e.name for e in retrieval_result.entities[:5]])
-            context_parts.append(f"相关实体：{entities_str}")
-
-        if retrieval_result.relations:
-            relations_str = "；".join([
-                f"{r.source}-{r.relation}-{r.target}"
-                for r in retrieval_result.relations[:3]
-            ])
-            context_parts.append(f"相关关系：{relations_str}")
+        # 添加检索结果内容
+        for i, result in enumerate(retrieval_result[:self.config.rerank_top_k]):
+            if result.source == "vector":
+                context_parts.append(f"文档片段{i+1}：{result.content}")
+            elif result.source == "graph":
+                context_parts.append(f"知识图谱信息{i+1}：{result.content}")
+            elif result.source == "fulltext":
+                context_parts.append(f"全文检索{i+1}：{result.content}")
+            else:
+                context_parts.append(f"相关内容{i+1}：{result.content}")
 
         context = "\n\n".join(context_parts)
 
