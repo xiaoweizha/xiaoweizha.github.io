@@ -1,0 +1,53 @@
+{
+  "version": "2",
+  "repository": {
+    "name": "xiaoweizha-design-system",
+    "personalAccessToken": "<YOUR_SPECIFY_TOKEN>"
+  },
+  "rules": [
+    {
+      "name": "Design Tokens",
+      "parsers": [
+        {
+          "name": "to-css-custom-properties",
+          "options": {
+            "tokenNameTemplate": "--{{name}}"
+          }
+        }
+      ],
+      "filter": {
+        "query": {
+          "where": {
+            "_and": [
+              {
+                "name": {
+                  "_neq": "Colors"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "Colors",
+      "parsers": [
+        {
+          "name": "to-css-custom-properties",
+          "options": {
+            "tokenNameTemplate": "--color-{{name}}"
+          }
+        }
+      ],
+      "filter": {
+        "query": {
+          "where": {
+            "name": {
+              "_eq": "Colors"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

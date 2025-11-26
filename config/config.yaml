@@ -1,0 +1,224 @@
+# 企业级RAG知识库系统配置
+
+# 系统配置
+system:
+  name: "企业RAG知识库"
+  version: "1.0.0"
+  debug: false
+  environment: "development"  # development, production, testing
+  timezone: "Asia/Shanghai"
+  language: "zh-CN"
+
+# 服务配置
+server:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  max_connections: 1000
+  keepalive_timeout: 30
+
+# LLM配置
+llm:
+  # 支持的提供商: openai, azure, anthropic, qianfan, tongyi, baichuan
+  provider: "openai"
+  model: "gpt-4-turbo"
+  api_key: "${OPENAI_API_KEY}"
+  api_base: "${OPENAI_API_BASE}"
+  temperature: 0.1
+  max_tokens: 4096
+  timeout: 60
+  retry_times: 3
+
+# Embedding配置
+embedding:
+  # 支持的提供商: openai, huggingface, bge, m3e
+  provider: "openai"
+  model: "text-embedding-3-large"
+  dimension: 1536
+  batch_size: 100
+  cache_enabled: true
+
+# 数据库配置
+database:
+  # MongoDB - 文档存储
+  mongodb:
+    host: "localhost"
+    port: 27017
+    database: "rag_kb"
+    username: "${MONGO_USERNAME}"
+    password: "${MONGO_PASSWORD}"
+    auth_source: "admin"
+    max_pool_size: 100
+
+  # Neo4j - 知识图谱
+  neo4j:
+    uri: "bolt://localhost:7687"
+    username: "neo4j"
+    password: "${NEO4J_PASSWORD}"
+    database: "neo4j"
+    max_connection_lifetime: 3600
+
+  # Qdrant - 向量数据库
+  qdrant:
+    host: "localhost"
+    port: 6333
+    api_key: "${QDRANT_API_KEY}"
+    collection_name: "documents"
+
+  # Redis - 缓存
+  redis:
+    host: "localhost"
+    port: 6379
+    password: "${REDIS_PASSWORD}"
+    db: 0
+    max_connections: 20
+
+  # Elasticsearch - 全文检索
+  elasticsearch:
+    hosts: ["localhost:9200"]
+    username: "${ES_USERNAME}"
+    password: "${ES_PASSWORD}"
+    index_name: "documents"
+
+# 文件存储
+storage:
+  # 本地存储
+  local:
+    base_path: "./storage"
+    max_file_size: "100MB"
+
+  # MinIO对象存储
+  minio:
+    endpoint: "localhost:9000"
+    access_key: "${MINIO_ACCESS_KEY}"
+    secret_key: "${MINIO_SECRET_KEY}"
+    bucket_name: "rag-documents"
+    secure: false
+
+# RAG配置
+rag:
+  # 检索模式: local, global, hybrid, naive, mix
+  retrieval_mode: "hybrid"
+
+  # 检索参数
+  top_k: 10
+  similarity_threshold: 0.7
+  rerank_enabled: true
+  rerank_top_k: 5
+
+  # 文档处理
+  chunk_size: 1000
+  chunk_overlap: 200
+  max_chunks_per_doc: 1000
+
+  # 知识图谱
+  entity_extraction: true
+  relation_extraction: true
+  graph_depth: 3
+  min_entity_frequency: 2
+
+  # 生成配置
+  context_window: 4000
+  max_context_tokens: 3000
+  response_language: "zh-CN"
+
+# 安全配置
+security:
+  # JWT配置
+  jwt_secret: "${JWT_SECRET}"
+  jwt_algorithm: "HS256"
+  jwt_expire_hours: 24
+
+  # 加密配置
+  encryption_key: "${ENCRYPTION_KEY}"
+
+  # CORS配置
+  cors_origins: ["http://localhost:3000", "http://localhost:8080"]
+
+  # 限流配置
+  rate_limit:
+    requests_per_minute: 60
+    burst_size: 10
+
+# 企业集成
+enterprise:
+  # SSO配置
+  sso:
+    enabled: false
+    provider: "saml"  # saml, oauth2, ldap
+    metadata_url: "${SSO_METADATA_URL}"
+
+  # LDAP配置
+  ldap:
+    enabled: false
+    server: "${LDAP_SERVER}"
+    base_dn: "${LDAP_BASE_DN}"
+    bind_dn: "${LDAP_BIND_DN}"
+    bind_password: "${LDAP_BIND_PASSWORD}"
+
+  # 企业微信/钉钉
+  work_wechat:
+    enabled: false
+    corp_id: "${WECHAT_CORP_ID}"
+    agent_id: "${WECHAT_AGENT_ID}"
+    secret: "${WECHAT_SECRET}"
+
+# 监控配置
+monitoring:
+  # Prometheus
+  prometheus:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+
+  # 健康检查
+  health_check:
+    enabled: true
+    interval: 30
+    timeout: 10
+
+  # 日志配置
+  logging:
+    level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+    format: "json"
+    file_path: "./logs/app.log"
+    max_size: "100MB"
+    backup_count: 5
+
+  # Sentry错误追踪
+  sentry:
+    enabled: false
+    dsn: "${SENTRY_DSN}"
+
+# 性能配置
+performance:
+  # 缓存配置
+  cache:
+    enabled: true
+    ttl: 3600  # 秒
+    max_size: 1000
+
+  # 异步处理
+  async_processing:
+    enabled: true
+    queue_size: 1000
+    worker_count: 4
+
+  # GPU配置
+  gpu:
+    enabled: false
+    device_id: 0
+    memory_fraction: 0.8
+
+# 开发配置
+development:
+  hot_reload: true
+  debug_sql: false
+  debug_api: true
+  mock_llm: false
+
+# 测试配置
+testing:
+  test_db_suffix: "_test"
+  mock_external_apis: true
+  preserve_test_data: false

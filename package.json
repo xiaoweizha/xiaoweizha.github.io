@@ -1,0 +1,68 @@
+{
+  "name": "enterprise-rag-system",
+  "version": "1.0.0",
+  "description": "企业级RAG知识库系统",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "python -m build",
+    "test": "npm run test:frontend && npm run test:backend",
+    "test:frontend": "cd frontend && npm run test",
+    "test:backend": "pytest tests/",
+    "lint": "npm run lint:frontend && npm run lint:backend",
+    "lint:frontend": "cd frontend && npm run lint",
+    "lint:backend": "flake8 src/ tests/",
+    "format": "npm run format:frontend && npm run format:backend",
+    "format:frontend": "cd frontend && npm run format",
+    "format:backend": "black src/ tests/",
+    "docker:build": "docker build -t enterprise-rag:latest .",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "k8s:deploy": "kubectl apply -f k8s/",
+    "k8s:delete": "kubectl delete -f k8s/",
+    "install": "npm install && cd frontend && npm install",
+    "specify:pull": "specify pull",
+    "specify:push": "specify push"
+  },
+  "keywords": [
+    "rag",
+    "knowledge-base",
+    "enterprise",
+    "ai",
+    "llm",
+    "vector-search",
+    "knowledge-graph",
+    "lightrag"
+  ],
+  "author": "xiaoweizha",
+  "license": "MIT",
+  "devDependencies": {
+    "@specify/cli": "^3.0.0",
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.0.2"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xiaoweizha/enterprise-rag.git"
+  },
+  "bugs": {
+    "url": "https://github.com/xiaoweizha/enterprise-rag/issues"
+  },
+  "homepage": "https://github.com/xiaoweizha/enterprise-rag#readme"
+}

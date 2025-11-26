@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业级RAG知识库系统</title>
+    <meta name="description" content="基于LightRAG的企业级检索增强生成知识库系统，专为企业场景设计">
+    <meta name="keywords" content="RAG,知识库,AI,企业级,LightRAG,检索增强生成">
+    <meta name="author" content="xiaoweizha">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Design Tokens CSS -->
+    <link rel="stylesheet" href="css/tokens.css">
+
+    <style>
+        :root {
+            /* 主色调 */
+            --primary-50: #f0f9ff;
+            --primary-100: #e0f2fe;
+            --primary-200: #bae6fd;
+            --primary-300: #7dd3fc;
+            --primary-400: #38bdf8;
+            --primary-500: #0ea5e9;
+            --primary-600: #0284c7;
+            --primary-700: #0369a1;
+            --primary-800: #075985;
+            --primary-900: #0c4a6e;
+
+            /* 中性色 */
+            --neutral-50: #fafafa;
+            --neutral-100: #f5f5f5;
+            --neutral-200: #e5e5e5;
+            --neutral-300: #d4d4d4;
+            --neutral-400: #a3a3a3;
+            --neutral-500: #737373;
+            --neutral-600: #525252;
+            --neutral-700: #404040;
+            --neutral-800: #262626;
+            --neutral-900: #171717;
+
+            /* 语义色 */
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --info: #3b82f6;
+
+            /* 间距 */
+            --spacing-xs: 0.25rem;
+            --spacing-sm: 0.5rem;
+            --spacing-md: 1rem;
+            --spacing-lg: 1.5rem;
+            --spacing-xl: 2rem;
+            --spacing-2xl: 3rem;
+
+            /* 字体 */
+            --font-family-primary: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-size-xs: 0.75rem;
+            --font-size-sm: 0.875rem;
+            --font-size-base: 1rem;
+            --font-size-lg: 1.125rem;
+            --font-size-xl: 1.25rem;
+            --font-size-2xl: 1.5rem;
+            --font-size-3xl: 1.875rem;
+            --font-size-4xl: 2.25rem;
+
+            /* 圆角 */
+            --border-radius-sm: 0.25rem;
+            --border-radius-md: 0.5rem;
+            --border-radius-lg: 0.75rem;
+            --border-radius-xl: 1rem;
+
+            /* 阴影 */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-family-primary);
+            font-size: var(--font-size-base);
+            line-height: 1.6;
+            color: var(--neutral-900);
+            background-color: var(--neutral-50);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 var(--spacing-md);
+        }
+
+        /* 头部 */
+        .header {
+            background: white;
+            border-bottom: 1px solid var(--neutral-200);
+            padding: var(--spacing-lg) 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            backdrop-filter: blur(8px);
+            background-color: rgba(255, 255, 255, 0.95);
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            font-size: var(--font-size-xl);
+            font-weight: 700;
+            color: var(--primary-600);
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(45deg, var(--primary-500), var(--primary-700));
+            border-radius: var(--border-radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .nav {
+            display: flex;
+            gap: var(--spacing-lg);
+        }
+
+        .nav a {
+            color: var(--neutral-600);
+            text-decoration: none;
+            font-weight: 500;
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--border-radius-md);
+            transition: all 0.2s ease;
+        }
+
+        .nav a:hover {
+            color: var(--primary-600);
+            background-color: var(--primary-50);
+        }
+
+        .nav a.active {
+            color: var(--primary-600);
+            background-color: var(--primary-100);
+        }
+
+        /* 主要内容 */
+        .main {
+            padding: var(--spacing-2xl) 0;
+        }
+
+        .hero {
+            text-align: center;
+            margin-bottom: var(--spacing-2xl);
+        }
+
+        .hero h1 {
+            font-size: var(--font-size-4xl);
+            font-weight: 700;
+            color: var(--neutral-900);
+            margin-bottom: var(--spacing-md);
+            background: linear-gradient(45deg, var(--primary-600), var(--primary-800));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: var(--font-size-lg);
+            color: var(--neutral-600);
+            max-width: 600px;
+            margin: 0 auto var(--spacing-xl) auto;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: var(--spacing-md);
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-md) var(--spacing-xl);
+            border: none;
+            border-radius: var(--border-radius-lg);
+            font-size: var(--font-size-base);
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-600);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-700);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-secondary {
+            background-color: white;
+            color: var(--neutral-700);
+            border: 1px solid var(--neutral-300);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--neutral-50);
+            border-color: var(--neutral-400);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* 特性卡片 */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: var(--spacing-xl);
+            margin-bottom: var(--spacing-2xl);
+        }
+
+        .feature-card {
+            background: white;
+            padding: var(--spacing-xl);
+            border-radius: var(--border-radius-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--neutral-200);
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-200);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--primary-100);
+            color: var(--primary-600);
+            border-radius: var(--border-radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-xl);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .feature-card h3 {
+            font-size: var(--font-size-xl);
+            font-weight: 600;
+            color: var(--neutral-900);
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .feature-card p {
+            color: var(--neutral-600);
+            line-height: 1.6;
+        }
+
+        /* 状态卡片 */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-2xl);
+        }
+
+        .status-card {
+            background: white;
+            padding: var(--spacing-lg);
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--neutral-200);
+        }
+
+        .status-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .status-title {
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            color: var(--neutral-600);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .status-value {
+            font-size: var(--font-size-2xl);
+            font-weight: 700;
+            color: var(--neutral-900);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* 快速操作 */
+        .quick-actions {
+            background: white;
+            padding: var(--spacing-xl);
+            border-radius: var(--border-radius-xl);
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--neutral-200);
+            margin-bottom: var(--spacing-2xl);
+        }
+
+        .quick-actions h2 {
+            font-size: var(--font-size-xl);
+            font-weight: 600;
+            color: var(--neutral-900);
+            margin-bottom: var(--spacing-lg);
+        }
+
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: var(--spacing-md);
+        }
+
+        .action-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-md);
+            border: 1px solid var(--neutral-200);
+            border-radius: var(--border-radius-md);
+            text-decoration: none;
+            color: var(--neutral-700);
+            transition: all 0.2s ease;
+        }
+
+        .action-item:hover {
+            border-color: var(--primary-300);
+            background-color: var(--primary-50);
+            color: var(--primary-700);
+        }
+
+        .action-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 页脚 */
+        .footer {
+            background: var(--neutral-900);
+            color: var(--neutral-300);
+            padding: var(--spacing-2xl) 0 var(--spacing-lg) 0;
+            margin-top: var(--spacing-2xl);
+        }
+
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: var(--spacing-xl);
+            margin-bottom: var(--spacing-xl);
+        }
+
+        .footer-section h3 {
+            color: white;
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            margin-bottom: var(--spacing-md);
+        }
+
+        .footer-section ul {
+            list-style: none;
+        }
+
+        .footer-section ul li {
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .footer-section a {
+            color: var(--neutral-400);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-section a:hover {
+            color: var(--primary-400);
+        }
+
+        .footer-bottom {
+            border-top: 1px solid var(--neutral-700);
+            padding-top: var(--spacing-lg);
+            text-align: center;
+            color: var(--neutral-500);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: var(--spacing-md);
+            }
+
+            .nav {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .hero h1 {
+                font-size: var(--font-size-3xl);
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .btn {
+                width: 100%;
+                max-width: 300px;
+                justify-content: center;
+            }
+        }
+
+        /* 加载动画 */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--neutral-300);
+            border-radius: 50%;
+            border-top-color: var(--primary-500);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 通知样式 */
+        .notification {
+            position: fixed;
+            top: var(--spacing-lg);
+            right: var(--spacing-lg);
+            background: white;
+            border-radius: var(--border-radius-lg);
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--neutral-200);
+            padding: var(--spacing-md);
+            max-width: 400px;
+            z-index: 1001;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .notification.success {
+            border-left: 4px solid var(--success);
+        }
+
+        .notification.error {
+            border-left: 4px solid var(--error);
+        }
+
+        .notification.warning {
+            border-left: 4px solid var(--warning);
+        }
+
+        .notification.info {
+            border-left: 4px solid var(--info);
+        }
+    </style>
+</head>
+<body>
+    <!-- 页面头部 -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <a href="/" class="logo">
+                    <div class="logo-icon">R</div>
+                    <span>企业RAG知识库</span>
+                </a>
+                <nav class="nav">
+                    <a href="#features" class="active">功能特性</a>
+                    <a href="#docs">文档</a>
+                    <a href="/api/v1/docs" target="_blank">API</a>
+                    <a href="https://github.com/xiaoweizha/enterprise-rag" target="_blank">GitHub</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要内容 -->
+    <main class="main">
+        <div class="container">
+            <!-- 英雄区域 -->
+            <section class="hero">
+                <h1>企业级RAG知识库系统</h1>
+                <p>基于LightRAG架构的企业级检索增强生成知识库系统，集成多模态处理、知识图谱、向量检索等先进技术，为企业提供智能化的知识管理和问答服务。</p>
+                <div class="cta-buttons">
+                    <a href="/frontend" class="btn btn-primary">
+                        <span>🚀</span>
+                        开始使用
+                    </a>
+                    <a href="/docs" class="btn btn-secondary">
+                        <span>📚</span>
+                        查看文档
+                    </a>
+                </div>
+            </section>
+
+            <!-- 系统状态 -->
+            <section class="status-grid">
+                <div class="status-card">
+                    <div class="status-header">
+                        <span class="status-title">系统状态</span>
+                        <div class="status-indicator"></div>
+                    </div>
+                    <div class="status-value">运行中</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-header">
+                        <span class="status-title">知识库数量</span>
+                    </div>
+                    <div class="status-value" id="kb-count">--</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-header">
+                        <span class="status-title">文档总数</span>
+                    </div>
+                    <div class="status-value" id="doc-count">--</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-header">
+                        <span class="status-title">今日查询</span>
+                    </div>
+                    <div class="status-value" id="query-count">--</div>
+                </div>
+            </section>
+
+            <!-- 核心特性 -->
+            <section id="features" class="features">
+                <div class="feature-card">
+                    <div class="feature-icon">🔍</div>
+                    <h3>混合检索技术</h3>
+                    <p>结合向量检索、图检索、全文检索等多种技术，提供更精准、更全面的知识检索能力，支持local、global、hybrid等多种检索模式。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🕸️</div>
+                    <h3>知识图谱构建</h3>
+                    <p>自动提取文档中的实体和关系，构建完整的知识图谱，支持图谱可视化、图谱推理和关系查询，让知识更加结构化。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎯</div>
+                    <h3>智能问答系统</h3>
+                    <p>基于检索增强生成技术，提供准确、相关、有来源的智能问答服务，支持多轮对话、上下文理解和个性化回答。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🏢</div>
+                    <h3>企业级安全</h3>
+                    <p>完整的用户权限管理、数据加密传输、访问控制和审计日志，满足企业级安全合规要求，支持SSO和LDAP集成。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>实时监控分析</h3>
+                    <p>全链路性能监控、使用统计分析、智能告警和可视化报表，帮助企业了解知识库使用情况和优化方向。</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔧</div>
+                    <h3>高度可配置</h3>
+                    <p>灵活的配置选项、插件化架构、多LLM支持和API集成能力，可以根据企业需求进行定制和扩展。</p>
+                </div>
+            </section>
+
+            <!-- 快速操作 -->
+            <section class="quick-actions">
+                <h2>快速操作</h2>
+                <div class="action-grid">
+                    <a href="/api/v1/docs" class="action-item" target="_blank">
+                        <div class="action-icon">📖</div>
+                        <span>API文档</span>
+                    </a>
+                    <a href="/health" class="action-item" target="_blank">
+                        <div class="action-icon">💚</div>
+                        <span>健康检查</span>
+                    </a>
+                    <a href="/system/info" class="action-item" target="_blank">
+                        <div class="action-icon">ℹ️</div>
+                        <span>系统信息</span>
+                    </a>
+                    <a href="https://github.com/xiaoweizha/enterprise-rag" class="action-item" target="_blank">
+                        <div class="action-icon">💻</div>
+                        <span>源代码</span>
+                    </a>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>产品</h3>
+                    <ul>
+                        <li><a href="#features">功能特性</a></li>
+                        <li><a href="/docs">使用文档</a></li>
+                        <li><a href="/api/v1/docs">API文档</a></li>
+                        <li><a href="/changelog">更新日志</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>开发者</h3>
+                    <ul>
+                        <li><a href="https://github.com/xiaoweizha/enterprise-rag">GitHub</a></li>
+                        <li><a href="/docs/development">开发指南</a></li>
+                        <li><a href="/docs/deployment">部署指南</a></li>
+                        <li><a href="/docs/contribute">贡献指南</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>支持</h3>
+                    <ul>
+                        <li><a href="/docs/faq">常见问题</a></li>
+                        <li><a href="https://github.com/xiaoweizha/enterprise-rag/issues">问题反馈</a></li>
+                        <li><a href="mailto:support@xiaoweizha.com">联系我们</a></li>
+                        <li><a href="/docs/support">技术支持</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>关于</h3>
+                    <ul>
+                        <li><a href="/about">关于我们</a></li>
+                        <li><a href="/blog">技术博客</a></li>
+                        <li><a href="/privacy">隐私政策</a></li>
+                        <li><a href="/terms">服务条款</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 xiaoweizha. All rights reserved. Powered by LightRAG.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // 获取系统统计信息
+        async function fetchSystemStats() {
+            try {
+                const response = await fetch('/system/info');
+                const data = await response.json();
+
+                if (data.statistics) {
+                    const stats = data.statistics;
+                    document.getElementById('kb-count').textContent = stats.knowledge_bases || '0';
+                    document.getElementById('doc-count').textContent = stats.documents || '0';
+                    document.getElementById('query-count').textContent = stats.today_queries || '0';
+                }
+            } catch (error) {
+                console.error('获取系统统计失败:', error);
+                // 显示默认值
+                document.getElementById('kb-count').textContent = '0';
+                document.getElementById('doc-count').textContent = '0';
+                document.getElementById('query-count').textContent = '0';
+            }
+        }
+
+        // 页面加载时获取统计信息
+        document.addEventListener('DOMContentLoaded', fetchSystemStats);
+
+        // 每30秒更新一次统计信息
+        setInterval(fetchSystemStats, 30000);
+
+        // 平滑滚动到锚点
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // 导航高亮
+        window.addEventListener('scroll', function() {
+            const sections = document.querySelectorAll('section[id]');
+            const navLinks = document.querySelectorAll('.nav a[href^="#"]');
+
+            let current = '';
+            sections.forEach(section => {
+                const sectionTop = section.offsetTop - 100;
+                if (window.pageYOffset >= sectionTop) {
+                    current = section.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === `#${current}`) {
+                    link.classList.add('active');
+                }
+            });
+        });
+
+        // 显示通知
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                    <span>${message}</span>
+                    <button onclick="this.parentElement.parentElement.remove()"
+                            style="background: none; border: none; cursor: pointer; color: var(--neutral-500);">✕</button>
+                </div>
+            `;
+
+            document.body.appendChild(notification);
+
+            // 3秒后自动消失
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 3000);
+        }
+
+        // 检查系统健康状态
+        async function checkHealth() {
+            try {
+                const response = await fetch('/health');
+                const data = await response.json();
+
+                if (data.status === 'healthy') {
+                    console.log('系统运行正常');
+                } else {
+                    showNotification('系统运行异常，请检查服务状态', 'warning');
+                }
+            } catch (error) {
+                console.error('健康检查失败:', error);
+            }
+        }
+
+        // 定期健康检查
+        checkHealth();
+        setInterval(checkHealth, 60000); // 每分钟检查一次
+    </script>
+</body>
+</html>

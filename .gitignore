@@ -1,0 +1,125 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node.js Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+build/
+
+# Environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Storage directories
+storage/documents/
+storage/exports/
+storage/temp/
+storage/uploads/
+storage/cache/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker volumes
+docker-data/
+
+# Monitoring data
+monitoring/prometheus/data/
+monitoring/grafana/data/
+
+# Nginx logs
+nginx/logs/
+
+# Local configuration files
+config/local.yaml
+config/production.yaml
+config/development.yaml
+
+# SSL certificates
+ssl/
+certs/
+*.pem
+*.key
+*.crt
+
+# Backup files
+*.bak
+*.backup
+*.dump
+
+# Test files
+test-results/
+coverage/
+.coverage
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Frontend specific
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+frontend/build/
+
+# Specify generated files
+tokens/build/
+css/tokens.css
