@@ -8,7 +8,11 @@ import os
 from typing import Any, Dict, Optional, Union
 from pathlib import Path
 import yaml
-from pydantic import BaseSettings, Field
+from pydantic import Field
+try:
+    from pydantic_settings import BaseSettings
+except ImportError:
+    from pydantic import BaseSettings
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -46,6 +50,11 @@ class DatabaseConfig(BaseSettings):
     elasticsearch_username: Optional[str] = Field(None, env="ES_USERNAME")
     elasticsearch_password: Optional[str] = Field(None, env="ES_PASSWORD")
 
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+
 
 class LLMConfig(BaseSettings):
     """LLM配置"""
@@ -70,6 +79,11 @@ class LLMConfig(BaseSettings):
     qianfan_secret_key: Optional[str] = Field(None, env="QIANFAN_SECRET_KEY")
     tongyi_api_key: Optional[str] = Field(None, env="TONGYI_API_KEY")
 
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+
 
 class EmbeddingConfig(BaseSettings):
     """Embedding配置"""
@@ -77,6 +91,11 @@ class EmbeddingConfig(BaseSettings):
     model: str = Field("text-embedding-3-large", env="EMBEDDING_MODEL")
     dimension: int = Field(1536, env="EMBEDDING_DIMENSION")
     batch_size: int = Field(100, env="EMBEDDING_BATCH_SIZE")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 class RAGConfig(BaseSettings):
@@ -94,6 +113,11 @@ class RAGConfig(BaseSettings):
     context_window: int = Field(4000, env="RAG_CONTEXT_WINDOW")
     max_context_tokens: int = Field(3000, env="RAG_MAX_CONTEXT_TOKENS")
 
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+
 
 class SecurityConfig(BaseSettings):
     """安全配置"""
@@ -105,6 +129,11 @@ class SecurityConfig(BaseSettings):
     rate_limit_requests: int = Field(60, env="RATE_LIMIT_REQUESTS")
     rate_limit_window: int = Field(60, env="RATE_LIMIT_WINDOW")
 
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+
 
 class ServerConfig(BaseSettings):
     """服务器配置"""
@@ -115,6 +144,11 @@ class ServerConfig(BaseSettings):
     keepalive_timeout: int = Field(30, env="SERVER_KEEPALIVE_TIMEOUT")
     debug: bool = Field(False, env="DEBUG")
     environment: str = Field("development", env="ENVIRONMENT")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 class StorageConfig(BaseSettings):
@@ -129,6 +163,11 @@ class StorageConfig(BaseSettings):
     minio_secret_key: Optional[str] = Field(None, env="MINIO_SECRET_KEY")
     minio_bucket: str = Field("rag-documents", env="MINIO_BUCKET")
     minio_secure: bool = Field(False, env="MINIO_SECURE")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 class MonitoringConfig(BaseSettings):
@@ -145,6 +184,11 @@ class MonitoringConfig(BaseSettings):
     # Sentry
     sentry_enabled: bool = Field(False, env="SENTRY_ENABLED")
     sentry_dsn: Optional[str] = Field(None, env="SENTRY_DSN")
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
 
 
 class Config(BaseSettings):
@@ -168,6 +212,7 @@ class Config(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"
         case_sensitive = False
 
     @classmethod

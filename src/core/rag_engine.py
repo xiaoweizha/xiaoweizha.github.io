@@ -19,9 +19,7 @@ from ..utils.logger import get_logger
 from ..models.schemas import (
     Document,
     QueryRequest,
-    QueryResponse,
-    RetrievalResult,
-    RAGConfig
+    QueryResponse
 )
 
 logger = get_logger(__name__)

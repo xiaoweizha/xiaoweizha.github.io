@@ -1,0 +1,228 @@
+"""
+向量存储模块
+
+向量数据库的统一接口实现。
+"""
+
+from typing import List, Dict, Any, Optional, Tuple
+from abc import ABC, abstractmethod
+import numpy as np
+import asyncio
+
+from ..utils.logger import get_logger
+from ..utils.config import get_config
+
+logger = get_logger(__name__)
+
+
+class VectorStoreBase(ABC):
+    """向量存储基类"""
+
+    @abstractmethod
+    async def add_vectors(
+        self,
+        vectors: List[List[float]],
+        metadatas: List[Dict[str, Any]],
+        ids: Optional[List[str]] = None
+    ) -> List[str]:
+        """添加向量"""
+        pass
+
+    @abstractmethod
+    async def search_vectors(
+        self,
+        query_vector: List[float],
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """搜索向量"""
+        pass
+
+    @abstractmethod
+    async def delete_vectors(self, ids: List[str]) -> bool:
+        """删除向量"""
+        pass
+
+    @abstractmethod
+    async def get_vector_count(self) -> int:
+        """获取向量数量"""
+        pass
+
+
+class QdrantVectorStore(VectorStoreBase):
+    """Qdrant向量存储实现"""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or get_config().database
+        self.client = None
+        self.collection_name = self.config.qdrant_collection
+
+    async def initialize(self):
+        """初始化连接"""
+        try:
+            # TODO: 实际的Qdrant客户端初始化
+            # from qdrant_client import QdrantClient
+            # self.client = QdrantClient(
+            #     host=self.config.qdrant_host,
+            #     port=self.config.qdrant_port,
+            #     api_key=self.config.qdrant_api_key
+            # )
+            logger.info("Qdrant向量存储初始化成功")
+            return True
+        except Exception as e:
+            logger.error("Qdrant初始化失败", error=str(e))
+            return False
+
+    async def add_vectors(
+        self,
+        vectors: List[List[float]],
+        metadatas: List[Dict[str, Any]],
+        ids: Optional[List[str]] = None
+    ) -> List[str]:
+        """添加向量到Qdrant"""
+        try:
+            if not ids:
+                ids = [f"vec_{i}" for i in range(len(vectors))]
+
+            # TODO: 实际的Qdrant插入逻辑
+            logger.info(f"添加{len(vectors)}个向量到Qdrant")
+            return ids
+
+        except Exception as e:
+            logger.error("添加向量失败", error=str(e))
+            raise
+
+    async def search_vectors(
+        self,
+        query_vector: List[float],
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """在Qdrant中搜索向量"""
+        try:
+            # TODO: 实际的Qdrant搜索逻辑
+            # 返回模拟结果
+            results = []
+            for i in range(min(top_k, 3)):
+                results.append({
+                    "id": f"result_{i}",
+                    "score": 0.9 - i * 0.1,
+                    "metadata": {
+                        "title": f"文档{i+1}",
+                        "content": f"这是文档{i+1}的内容...",
+                        "chunk_id": f"chunk_{i}"
+                    }
+                })
+
+            return results
+
+        except Exception as e:
+            logger.error("向量搜索失败", error=str(e))
+            return []
+
+    async def delete_vectors(self, ids: List[str]) -> bool:
+        """从Qdrant删除向量"""
+        try:
+            # TODO: 实际的删除逻辑
+            logger.info(f"删除{len(ids)}个向量")
+            return True
+        except Exception as e:
+            logger.error("删除向量失败", error=str(e))
+            return False
+
+    async def get_vector_count(self) -> int:
+        """获取向量数量"""
+        try:
+            # TODO: 实际的统计逻辑
+            return 1000  # 模拟返回
+        except Exception as e:
+            logger.error("获取向量数量失败", error=str(e))
+            return 0
+
+
+class VectorStore:
+    """向量存储统一接口"""
+
+    def __init__(self, store_type: str = "qdrant"):
+        self.store_type = store_type
+        self.store = None
+
+    async def initialize(self):
+        """初始化向量存储"""
+        try:
+            if self.store_type == "qdrant":
+                self.store = QdrantVectorStore()
+            else:
+                raise ValueError(f"不支持的向量存储类型: {self.store_type}")
+
+            success = await self.store.initialize()
+            if success:
+                logger.info(f"向量存储初始化成功: {self.store_type}")
+            else:
+                logger.error(f"向量存储初始化失败: {self.store_type}")
+
+            return success
+
+        except Exception as e:
+            logger.error("向量存储初始化异常", error=str(e))
+            return False
+
+    async def add_vectors(
+        self,
+        vectors: List[List[float]],
+        metadatas: List[Dict[str, Any]],
+        ids: Optional[List[str]] = None
+    ) -> List[str]:
+        """添加向量"""
+        if not self.store:
+            raise RuntimeError("向量存储未初始化")
+        return await self.store.add_vectors(vectors, metadatas, ids)
+
+    async def search_vectors(
+        self,
+        query_vector: List[float],
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """搜索向量"""
+        if not self.store:
+            raise RuntimeError("向量存储未初始化")
+        return await self.store.search_vectors(query_vector, top_k, filters)
+
+    async def delete_vectors(self, ids: List[str]) -> bool:
+        """删除向量"""
+        if not self.store:
+            raise RuntimeError("向量存储未初始化")
+        return await self.store.delete_vectors(ids)
+
+    async def get_statistics(self) -> Dict[str, Any]:
+        """获取存储统计信息"""
+        if not self.store:
+            return {"status": "未初始化", "count": 0}
+
+        try:
+            count = await self.store.get_vector_count()
+            return {
+                "status": "正常",
+                "type": self.store_type,
+                "vector_count": count
+            }
+        except Exception as e:
+            logger.error("获取向量存储统计失败", error=str(e))
+            return {"status": "异常", "error": str(e)}
+
+    async def health_check(self) -> Dict[str, Any]:
+        """健康检查"""
+        try:
+            if not self.store:
+                return {"status": "unhealthy", "reason": "未初始化"}
+
+            # 尝试获取统计信息来验证连接
+            stats = await self.get_statistics()
+            if stats["status"] == "正常":
+                return {"status": "healthy"}
+            else:
+                return {"status": "unhealthy", "reason": stats.get("error", "未知错误")}
+
+        except Exception as e:
+            return {"status": "unhealthy", "reason": str(e)}

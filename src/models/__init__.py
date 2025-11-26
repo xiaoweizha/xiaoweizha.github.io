@@ -5,7 +5,6 @@
 """
 
 from .schemas import *
-from .database import *
 
 __all__ = [
     # Schema类
@@ -17,11 +16,5 @@ __all__ = [
     "Entity",
     "Relation",
     "User",
-    "KnowledgeBase",
-
-    # 数据库模型
-    "DocumentModel",
-    "ChunkModel",
-    "UserModel",
-    "SessionModel"
+    "KnowledgeBase"
 ]

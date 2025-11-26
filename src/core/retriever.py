@@ -1,0 +1,342 @@
+"""
+混合检索器模块
+
+实现向量检索、图检索和全文检索的混合策略。
+"""
+
+from typing import List, Dict, Any, Optional, Union
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+import asyncio
+
+from .vector_store import VectorStore
+from .graph_store import GraphStore
+from ..utils.logger import get_logger
+from ..utils.config import get_config
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class RetrievalResult:
+    """检索结果"""
+    content: str
+    score: float
+    source: str  # vector, graph, fulltext
+    metadata: Dict[str, Any]
+    document_id: Optional[str] = None
+    chunk_id: Optional[str] = None
+
+
+class RetrieverBase(ABC):
+    """检索器基类"""
+
+    @abstractmethod
+    async def retrieve(
+        self,
+        query: str,
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[RetrievalResult]:
+        """执行检索"""
+        pass
+
+
+class VectorRetriever(RetrieverBase):
+    """向量检索器"""
+
+    def __init__(self, vector_store: VectorStore):
+        self.vector_store = vector_store
+
+    async def retrieve(
+        self,
+        query: str,
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[RetrievalResult]:
+        """向量检索"""
+        try:
+            # TODO: 实际的查询向量化
+            # 这里需要调用embedding模型将query转换为向量
+            query_vector = [0.1] * 1536  # 模拟查询向量
+
+            # 执行向量搜索
+            vector_results = await self.vector_store.search_vectors(
+                query_vector=query_vector,
+                top_k=top_k,
+                filters=filters
+            )
+
+            # 转换为统一格式
+            results = []
+            for i, result in enumerate(vector_results):
+                metadata = result.get("metadata", {})
+                retrieval_result = RetrievalResult(
+                    content=metadata.get("content", ""),
+                    score=result.get("score", 0.0),
+                    source="vector",
+                    metadata=metadata,
+                    document_id=metadata.get("document_id"),
+                    chunk_id=metadata.get("chunk_id", result.get("id"))
+                )
+                results.append(retrieval_result)
+
+            logger.info(f"向量检索完成，返回{len(results)}个结果")
+            return results
+
+        except Exception as e:
+            logger.error("向量检索失败", error=str(e))
+            return []
+
+
+class GraphRetriever(RetrieverBase):
+    """图检索器"""
+
+    def __init__(self, graph_store: GraphStore):
+        self.graph_store = graph_store
+
+    async def retrieve(
+        self,
+        query: str,
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[RetrievalResult]:
+        """图检索"""
+        try:
+            # TODO: 实际的实体识别和图遍历
+            # 1. 从query中提取实体
+            # 2. 在知识图谱中查找相关实体和关系
+            # 3. 构建检索结果
+
+            # 模拟实体提取
+            entities = await self._extract_entities(query)
+
+            results = []
+            for entity in entities:
+                # 查找相关实体
+                related = await self.graph_store.find_related_entities(
+                    entity_id=entity["id"],
+                    max_depth=2
+                )
+
+                for rel in related[:top_k]:
+                    result = RetrievalResult(
+                        content=f"实体{entity['name']}与{rel['entity_id']}存在{rel['relation_type']}关系",
+                        score=rel.get("weight", 0.5),
+                        source="graph",
+                        metadata={
+                            "entity": entity,
+                            "related_entity": rel["entity_id"],
+                            "relation_type": rel["relation_type"]
+                        }
+                    )
+                    results.append(result)
+
+            logger.info(f"图检索完成，返回{len(results)}个结果")
+            return results[:top_k]
+
+        except Exception as e:
+            logger.error("图检索失败", error=str(e))
+            return []
+
+    async def _extract_entities(self, query: str) -> List[Dict[str, Any]]:
+        """从查询中提取实体"""
+        # TODO: 实际的NER实现
+        # 这里返回模拟实体
+        return [
+            {"id": "entity_1", "name": "机器学习", "type": "Concept"},
+            {"id": "entity_2", "name": "深度学习", "type": "Concept"}
+        ]
+
+
+class FulltextRetriever(RetrieverBase):
+    """全文检索器"""
+
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or get_config().database
+
+    async def retrieve(
+        self,
+        query: str,
+        top_k: int = 10,
+        filters: Optional[Dict[str, Any]] = None
+    ) -> List[RetrievalResult]:
+        """全文检索"""
+        try:
+            # TODO: 实际的Elasticsearch查询
+            # 这里返回模拟结果
+            results = []
+
+            # 模拟关键词匹配
+            keywords = query.split()
+            for i, keyword in enumerate(keywords[:top_k]):
+                result = RetrievalResult(
+                    content=f"包含关键词'{keyword}'的文档内容...",
+                    score=0.8 - i * 0.1,
+                    source="fulltext",
+                    metadata={
+                        "keyword": keyword,
+                        "document_title": f"文档{i+1}",
+                        "highlight": f"...{keyword}..."
+                    }
+                )
+                results.append(result)
+
+            logger.info(f"全文检索完成，返回{len(results)}个结果")
+            return results
+
+        except Exception as e:
+            logger.error("全文检索失败", error=str(e))
+            return []
+
+
+class HybridRetriever:
+    """混合检索器"""
+
+    def __init__(
+        self,
+        vector_store: VectorStore,
+        graph_store: GraphStore,
+        config: Optional[Dict[str, Any]] = None
+    ):
+        self.vector_retriever = VectorRetriever(vector_store)
+        self.graph_retriever = GraphRetriever(graph_store)
+        self.fulltext_retriever = FulltextRetriever(config)
+        self.config = config or {}
+
+    async def retrieve(
+        self,
+        query: str,
+        mode: str = "hybrid",
+        top_k: int = 10,
+        rerank: bool = True
+    ) -> List[RetrievalResult]:
+        """
+        混合检索
+
+        Args:
+            query: 查询文本
+            mode: 检索模式 (vector, graph, fulltext, hybrid)
+            top_k: 返回结果数量
+            rerank: 是否重新排序
+        """
+        try:
+            all_results = []
+
+            if mode == "vector":
+                results = await self.vector_retriever.retrieve(query, top_k)
+                all_results.extend(results)
+
+            elif mode == "graph":
+                results = await self.graph_retriever.retrieve(query, top_k)
+                all_results.extend(results)
+
+            elif mode == "fulltext":
+                results = await self.fulltext_retriever.retrieve(query, top_k)
+                all_results.extend(results)
+
+            elif mode == "hybrid":
+                # 并行执行多种检索
+                tasks = [
+                    self.vector_retriever.retrieve(query, top_k // 3 + 2),
+                    self.graph_retriever.retrieve(query, top_k // 3 + 2),
+                    self.fulltext_retriever.retrieve(query, top_k // 3 + 2)
+                ]
+
+                results_list = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for results in results_list:
+                    if isinstance(results, list):
+                        all_results.extend(results)
+
+            else:
+                raise ValueError(f"不支持的检索模式: {mode}")
+
+            # 去重和重排序
+            unique_results = self._deduplicate_results(all_results)
+
+            if rerank and len(unique_results) > 1:
+                unique_results = await self._rerank_results(query, unique_results)
+
+            # 返回top_k结果
+            final_results = unique_results[:top_k]
+
+            logger.info(
+                f"混合检索完成",
+                mode=mode,
+                total_results=len(all_results),
+                unique_results=len(unique_results),
+                final_results=len(final_results)
+            )
+
+            return final_results
+
+        except Exception as e:
+            logger.error("混合检索失败", error=str(e))
+            return []
+
+    def _deduplicate_results(self, results: List[RetrievalResult]) -> List[RetrievalResult]:
+        """去重检索结果"""
+        seen_content = set()
+        unique_results = []
+
+        for result in results:
+            content_hash = hash(result.content)
+            if content_hash not in seen_content:
+                seen_content.add(content_hash)
+                unique_results.append(result)
+
+        return unique_results
+
+    async def _rerank_results(
+        self,
+        query: str,
+        results: List[RetrievalResult]
+    ) -> List[RetrievalResult]:
+        """重新排序结果"""
+        try:
+            # TODO: 实际的重排序逻辑
+            # 可以使用更复杂的相关性计算，如交叉编码器
+
+            # 简单的评分调整策略
+            for result in results:
+                # 根据来源调整权重
+                if result.source == "vector":
+                    result.score *= 1.0
+                elif result.source == "graph":
+                    result.score *= 0.9
+                elif result.source == "fulltext":
+                    result.score *= 0.8
+
+                # 根据内容长度调整
+                content_length = len(result.content)
+                if content_length > 100:
+                    result.score *= 1.1
+                elif content_length < 50:
+                    result.score *= 0.9
+
+            # 按分数排序
+            sorted_results = sorted(results, key=lambda x: x.score, reverse=True)
+
+            logger.info(f"重排序完成，调整了{len(results)}个结果")
+            return sorted_results
+
+        except Exception as e:
+            logger.error("重排序失败", error=str(e))
+            return results
+
+    async def get_statistics(self) -> Dict[str, Any]:
+        """获取检索器统计信息"""
+        try:
+            vector_stats = await self.vector_retriever.vector_store.get_statistics()
+            graph_stats = await self.graph_retriever.graph_store.get_statistics()
+
+            return {
+                "vector_store": vector_stats,
+                "graph_store": graph_stats,
+                "retrieval_modes": ["vector", "graph", "fulltext", "hybrid"]
+            }
+
+        except Exception as e:
+            logger.error("获取检索器统计失败", error=str(e))
+            return {"error": str(e)}
