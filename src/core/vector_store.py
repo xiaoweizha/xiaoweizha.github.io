@@ -211,6 +211,75 @@ class VectorStore:
             logger.error("获取向量存储统计失败", error=str(e))
             return {"status": "异常", "error": str(e)}
 
+    async def add_chunks(self, chunks) -> Dict[str, Any]:
+        """
+        添加文档块到向量存储
+
+        Args:
+            chunks: DocumentChunk 列表
+
+        Returns:
+            添加结果
+        """
+        if not self.store:
+            raise RuntimeError("向量存储未初始化")
+
+        try:
+            # 准备向量和元数据
+            vectors = []
+            metadatas = []
+            ids = []
+
+            # 导入嵌入模块
+            from .embeddings import get_embedding_provider
+
+            embedding_provider = get_embedding_provider()
+
+            for i, chunk in enumerate(chunks):
+                # 生成嵌入向量（如果chunk还没有嵌入）
+                if not chunk.embedding:
+                    embedding = await embedding_provider.embed_text(chunk.content)
+                    chunk.embedding = embedding
+                else:
+                    embedding = chunk.embedding
+
+                vectors.append(embedding)
+
+                # 准备元数据
+                metadata = {
+                    "document_id": chunk.document_id,
+                    "content": chunk.content,
+                    "chunk_index": chunk.chunk_index,
+                    "start_pos": chunk.start_pos,
+                    "end_pos": chunk.end_pos,
+                    **chunk.metadata  # 包含原有元数据
+                }
+                metadatas.append(metadata)
+
+                # 生成唯一ID
+                chunk_id = f"{chunk.document_id}_chunk_{chunk.chunk_index}"
+                ids.append(chunk_id)
+
+            # 调用底层存储方法
+            result_ids = await self.store.add_vectors(vectors, metadatas, ids)
+
+            logger.info(
+                "成功添加文档块到向量存储",
+                chunks_count=len(chunks),
+                document_id=chunks[0].document_id if chunks else None
+            )
+
+            return {
+                "success": True,
+                "chunks_count": len(chunks),
+                "vector_ids": result_ids,
+                "embeddings_generated": len([c for c in chunks if c.embedding])
+            }
+
+        except Exception as e:
+            logger.error("添加文档块失败", error=str(e))
+            raise
+
     async def health_check(self) -> Dict[str, Any]:
         """健康检查"""
         try:

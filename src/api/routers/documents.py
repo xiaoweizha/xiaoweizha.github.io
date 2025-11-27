@@ -4,13 +4,18 @@
 文档上传、处理和管理相关接口。
 """
 
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Request
 from pydantic import BaseModel
 from typing import List, Optional
 import time
 import uuid
+import os
+from pathlib import Path
+import aiofiles
 
 from ...utils.logger import get_logger
+from ...utils.config import get_config
+from ...models.schemas import Document, DocumentStatus
 from .auth import get_current_user, UserInfo
 
 router = APIRouter()
@@ -45,45 +50,77 @@ class UploadResponse(BaseModel):
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_document(
-    file: UploadFile = File(...),
-    current_user: UserInfo = Depends(get_current_user)
+    request: Request,
+    file: UploadFile = File(...)
+    # TODO: Re-enable authentication in production
+    # current_user: UserInfo = Depends(get_current_user)
 ):
     """上传文档"""
     try:
-        # 检查文件类型
-        allowed_types = ["application/pdf", "application/msword",
-                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        "text/plain", "text/markdown"]
+        config = get_config()
 
-        if file.content_type not in allowed_types:
+        # 检查文件类型
+        allowed_extensions = [".pdf", ".docx", ".doc", ".txt", ".md", ".html"]
+        file_extension = Path(file.filename).suffix.lower()
+
+        if file_extension not in allowed_extensions:
             raise HTTPException(
                 status_code=400,
-                detail=f"不支持的文件类型: {file.content_type}"
+                detail=f"不支持的文件类型: {file_extension}"
             )
 
-        # 检查文件大小 (最大50MB)
-        max_size = 50 * 1024 * 1024
+        # 检查文件大小
+        max_size = config.storage.max_file_size
         content = await file.read()
         if len(content) > max_size:
             raise HTTPException(
                 status_code=400,
-                detail="文件大小超过限制 (50MB)"
+                detail=f"文件大小超过限制 ({max_size // (1024*1024)}MB)"
             )
 
-        # 生成文档ID
+        # 生成文档ID和文件路径
         doc_id = str(uuid.uuid4())
+        safe_filename = f"{doc_id}_{file.filename}"
 
-        # TODO: 实际的文件处理逻辑
-        # 1. 保存文件到存储系统
-        # 2. 提交到文档处理队列
-        # 3. 更新数据库记录
+        # 创建存储目录
+        storage_path = Path(config.storage.local_base_path)
+        storage_path.mkdir(parents=True, exist_ok=True)
+
+        # 保存文件
+        file_path = storage_path / safe_filename
+        async with aiofiles.open(file_path, 'wb') as f:
+            await f.write(content)
+
+        # 创建文档对象
+        document = Document(
+            id=doc_id,
+            filename=file.filename,
+            title=Path(file.filename).stem,  # 文件名作为标题
+            file_path=str(file_path),
+            file_size=len(content),
+            mime_type=file.content_type,
+            status=DocumentStatus.PROCESSING,
+            author="anonymous",  # TODO: Use actual user when auth is enabled
+            metadata={
+                "uploaded_by": "anonymous",  # TODO: Use actual user when auth is enabled
+                "original_filename": file.filename,
+                "extension": file_extension
+            }
+        )
+
+        # 获取RAG引擎并处理文档
+        rag_engine = request.app.state.rag_engine
+
+        # 异步处理文档（在后台）
+        import asyncio
+        asyncio.create_task(process_document_background(rag_engine, document))
 
         logger.info(
             "文档上传成功",
             document_id=doc_id,
             filename=file.filename,
             file_size=len(content),
-            user=current_user.username
+            user="anonymous"  # TODO: Use actual user when auth is enabled
         )
 
         return UploadResponse(
@@ -94,8 +131,37 @@ async def upload_document(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error("文档上传失败", error=str(e))
-        raise HTTPException(status_code=500, detail="文档上传失败")
+        logger.error("文档上传失败", error=str(e), filename=file.filename if file else None)
+        raise HTTPException(status_code=500, detail=f"文档上传失败: {str(e)}")
+
+
+async def process_document_background(rag_engine, document: Document):
+    """在后台处理文档"""
+    try:
+        logger.info("开始处理文档", document_id=document.id, filename=document.filename)
+
+        # 使用RAG引擎处理文档
+        result = await rag_engine.add_document(document, build_graph=True)
+
+        logger.info(
+            "文档处理完成",
+            document_id=document.id,
+            chunks_count=result.get("chunks_count", 0),
+            entities=result.get("graph_entities", 0),
+            relations=result.get("graph_relations", 0)
+        )
+
+        # 更新文档状态为完成
+        # TODO: 在实际应用中，这里应该更新数据库中的文档状态
+
+    except Exception as e:
+        logger.error(
+            "文档处理失败",
+            document_id=document.id,
+            filename=document.filename,
+            error=str(e)
+        )
+        # TODO: 更新文档状态为失败
 
 
 @router.get("/", response_model=DocumentListResponse)
@@ -197,7 +263,7 @@ async def delete_document(
         logger.info(
             "文档删除成功",
             document_id=document_id,
-            user=current_user.username
+            user="anonymous"  # TODO: Use actual user when auth is enabled
         )
 
         return {"message": "文档删除成功"}

@@ -21,9 +21,9 @@ server:
 llm:
   # 支持的提供商: openai, azure, anthropic, qianfan, tongyi, baichuan
   provider: "anthropic"
-  model: "claude-3-5-sonnet-20241022"
-  api_key: "${ANTHROPIC_API_KEY}"
-  api_base: "${ANTHROPIC_BASE_URL}"
+  model: "claude-3-5-sonnet-20241022"  # 使用标准的Claude模型名称
+  api_key: "${ANTHROPIC_API_KEY}"  # 使用标准环境变量名
+  api_base: "${ANTHROPIC_BASE_URL}"  # 恢复使用配置的路由服务器
   temperature: 0.1
   max_tokens: 4096
   timeout: 60

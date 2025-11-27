@@ -59,8 +59,10 @@ class DatabaseConfig(BaseSettings):
 class LLMConfig(BaseSettings):
     """LLM配置"""
     # 基础配置
-    provider: str = Field("openai", env="LLM_PROVIDER")
-    model: str = Field("gpt-4-turbo", env="LLM_MODEL")
+    provider: str = Field("anthropic", env="LLM_PROVIDER")
+    model: str = Field("claude-3-5-sonnet-20241022", env="LLM_MODEL")  # 使用标准模型名
+    api_key: Optional[str] = Field(None, env="ANTHROPIC_API_KEY")  # 使用标准环境变量
+    api_base: Optional[str] = Field(None, env="LLM_API_BASE")  # 不默认指向路由服务器
     temperature: float = Field(0.1, env="LLM_TEMPERATURE")
     max_tokens: int = Field(4096, env="LLM_MAX_TOKENS")
     timeout: int = Field(60, env="LLM_TIMEOUT")
@@ -68,6 +70,10 @@ class LLMConfig(BaseSettings):
     # OpenAI配置
     openai_api_key: Optional[str] = Field(None, env="OPENAI_API_KEY")
     openai_api_base: Optional[str] = Field(None, env="OPENAI_API_BASE")
+
+    # Anthropic配置
+    anthropic_api_key: Optional[str] = Field(None, env="ANTHROPIC_API_KEY")
+    anthropic_api_base: Optional[str] = Field(None, env="ANTHROPIC_BASE_URL")
 
     # Azure OpenAI配置
     azure_endpoint: Optional[str] = Field(None, env="AZURE_OPENAI_ENDPOINT")
@@ -233,7 +239,11 @@ class Config(BaseSettings):
                 return cls()
 
             with open(yaml_path, 'r', encoding='utf-8') as f:
-                yaml_data = yaml.safe_load(f)
+                yaml_content = f.read()
+
+            # 解析环境变量替换
+            yaml_content = cls._substitute_env_vars(yaml_content)
+            yaml_data = yaml.safe_load(yaml_content)
 
             # 将嵌套字典转换为环境变量格式
             env_vars = cls._flatten_dict(yaml_data)
@@ -260,6 +270,29 @@ class Config(BaseSettings):
         except Exception as e:
             logger.error(f"加载YAML配置失败: {e}")
             return cls()
+
+    @staticmethod
+    def _substitute_env_vars(content: str) -> str:
+        """
+        替换YAML配置中的环境变量
+
+        Args:
+            content: YAML配置内容
+
+        Returns:
+            替换后的内容
+        """
+        import re
+
+        def replace_env_var(match):
+            var_name = match.group(1)
+            env_value = os.environ.get(var_name, '')
+            logger.debug(f"替换环境变量 {var_name}={env_value}")
+            return env_value
+
+        # 匹配 ${VAR_NAME} 格式
+        pattern = r'\$\{([^}]+)\}'
+        return re.sub(pattern, replace_env_var, content)
 
     @staticmethod
     def _flatten_dict(d: Dict[str, Any], parent_key: str = '', sep: str = '_') -> Dict[str, Any]:

@@ -39,6 +39,49 @@ class ChatRequest(BaseModel):
     top_k: int = 5
 
 
+@router.post("/query")
+async def query_rag(
+    request: QueryRequest,
+    http_request: Request
+):
+    """RAG查询接口（无需认证，用于快速体验）"""
+    try:
+        # 获取RAG引擎
+        rag_engine = http_request.app.state.rag_engine
+
+        # 执行RAG查询
+        result = await rag_engine.query(
+            query=request.query,
+            mode=request.mode.value if hasattr(request.mode, 'value') else request.mode,
+            top_k=request.top_k
+        )
+
+        logger.info(
+            "RAG查询完成",
+            query=request.query[:50],
+            mode=request.mode,
+            confidence=result.confidence
+        )
+
+        return {
+            "success": True,
+            "data": result,
+            "message": "查询成功"
+        }
+
+    except Exception as e:
+        logger.error(
+            "RAG查询失败",
+            query=request.query[:50],
+            error=str(e)
+        )
+        return {
+            "success": False,
+            "message": f"查询失败: {str(e)}",
+            "data": None
+        }
+
+
 @router.post("/ask", response_model=QueryResponse)
 async def ask_question(
     request: ChatRequest,

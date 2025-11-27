@@ -7,11 +7,14 @@ FastAPI主应用
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import time
 import uuid
 import structlog
+import os
+from pathlib import Path
 
 from ..utils.config import get_config
 from ..utils.logger import setup_logging, get_logger
@@ -185,10 +188,38 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 
-# 根路径
-@app.get("/")
+# 根路径 - 返回前端页面
+@app.get("/", response_class=HTMLResponse)
 async def root():
-    """系统信息"""
+    """返回前端页面"""
+    try:
+        # 获取前端文件路径
+        current_dir = Path(__file__).parent.parent.parent
+        frontend_file = current_dir / "frontend" / "index.html"
+
+        if frontend_file.exists():
+            return FileResponse(str(frontend_file))
+        else:
+            # 如果找不到前端文件，返回简单的HTML页面
+            return HTMLResponse("""
+            <html>
+                <head><title>企业级RAG知识库系统</title></head>
+                <body>
+                    <h1>企业级RAG知识库系统</h1>
+                    <p>系统正在运行中...</p>
+                    <p><a href="/docs">查看API文档</a></p>
+                    <p><a href="/health">系统健康检查</a></p>
+                </body>
+            </html>
+            """)
+    except Exception as e:
+        logger.error("返回前端页面失败", error=str(e))
+        return HTMLResponse("<h1>系统错误</h1><p>无法加载前端页面</p>")
+
+# 系统信息API
+@app.get("/api/system/info")
+async def system_info_api():
+    """系统信息API"""
     return {
         "name": config.system_name,
         "version": config.system_version,

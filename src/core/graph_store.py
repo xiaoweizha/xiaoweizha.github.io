@@ -296,6 +296,134 @@ class GraphStore:
             logger.error("获取图统计失败", error=str(e))
             return {"status": "异常", "error": str(e)}
 
+    async def build_graph_from_chunks(self, chunks) -> Dict[str, Any]:
+        """
+        从文档块构建知识图谱
+
+        Args:
+            chunks: DocumentChunk 列表
+
+        Returns:
+            图谱构建结果
+        """
+        if not self.store:
+            raise RuntimeError("图存储未初始化")
+
+        try:
+            entities_added = 0
+            relations_added = 0
+
+            # 简化的知识图谱构建逻辑
+            for chunk in chunks:
+                # 从文档块内容中提取实体和关系
+                # 这里使用简化的逻辑，实际应该使用NLP技术进行实体识别
+
+                # 创建文档节点
+                doc_entity = {
+                    "id": f"doc_{chunk.document_id}",
+                    "type": "Document",
+                    "properties": {
+                        "document_id": chunk.document_id,
+                        "title": chunk.metadata.get("title", f"文档{chunk.document_id[:8]}"),
+                        "created_at": chunk.metadata.get("created_at", "")
+                    }
+                }
+
+                # 创建块节点
+                chunk_entity = {
+                    "id": f"chunk_{chunk.document_id}_{chunk.chunk_index}",
+                    "type": "DocumentChunk",
+                    "properties": {
+                        "document_id": chunk.document_id,
+                        "chunk_index": chunk.chunk_index,
+                        "content_preview": chunk.content[:100] + "..." if len(chunk.content) > 100 else chunk.content,
+                        "content_length": len(chunk.content)
+                    }
+                }
+
+                # 添加实体
+                await self.add_entity(doc_entity)
+                await self.add_entity(chunk_entity)
+                entities_added += 2
+
+                # 创建文档-块关系
+                doc_chunk_relation = {
+                    "from_entity": doc_entity["id"],
+                    "to_entity": chunk_entity["id"],
+                    "type": "CONTAINS_CHUNK",
+                    "properties": {
+                        "chunk_order": chunk.chunk_index,
+                        "weight": 1.0
+                    }
+                }
+                await self.add_relation(doc_chunk_relation)
+                relations_added += 1
+
+                # 基于内容的简单主题提取
+                content_lower = chunk.content.lower()
+                topics = []
+
+                # 简单的关键词匹配
+                if "rag" in content_lower or "检索" in content_lower:
+                    topics.append("RAG技术")
+                if "知识图谱" in content_lower or "图谱" in content_lower:
+                    topics.append("知识图谱")
+                if "向量" in content_lower or "嵌入" in content_lower:
+                    topics.append("向量检索")
+                if "ai" in content_lower or "人工智能" in content_lower:
+                    topics.append("人工智能")
+
+                # 为每个主题创建节点和关系
+                for topic in topics:
+                    topic_entity = {
+                        "id": f"topic_{topic.replace(' ', '_')}",
+                        "type": "Topic",
+                        "properties": {
+                            "name": topic,
+                            "category": "技术概念"
+                        }
+                    }
+
+                    topic_relation = {
+                        "from_entity": chunk_entity["id"],
+                        "to_entity": topic_entity["id"],
+                        "type": "RELATES_TO",
+                        "properties": {
+                            "confidence": 0.8,
+                            "weight": 0.6
+                        }
+                    }
+
+                    await self.add_entity(topic_entity)
+                    await self.add_relation(topic_relation)
+                    entities_added += 1
+                    relations_added += 1
+
+            logger.info(
+                "知识图谱构建完成",
+                chunks_count=len(chunks),
+                entities_added=entities_added,
+                relations_added=relations_added
+            )
+
+            return {
+                "success": True,
+                "chunks_processed": len(chunks),
+                "graph_entities": entities_added,
+                "graph_relations": relations_added
+            }
+
+        except Exception as e:
+            logger.error("知识图谱构建失败", error=str(e))
+            # 不抛出异常，返回失败结果
+            return {
+                "success": False,
+                "error": str(e),
+                "chunks_processed": len(chunks),
+                "graph_entities": 0,
+                "graph_relations": 0
+            }
+
     async def health_check(self) -> Dict[str, Any]:
         """健康检查"""
         try:
