@@ -12,13 +12,16 @@ cd xiaoweizha.github.io
 
 ### 2. 配置环境
 ```bash
-# 复制配置文件
-cp .env.production .env
+# 安装Python依赖
+pip3 install -r requirements.txt
 
-# 编辑配置（必须设置API密钥）
-vim .env
-# 修改以下配置：
-# ANTHROPIC_AUTH_TOKEN=your-claude-api-key-here
+# Claude API配置（推荐使用本机CLI）
+# 安装Claude CLI（如果尚未安装）
+curl -sSf https://install.anthropic.com | sh
+
+# 或者使用传统API密钥方式：
+# cp .env.production .env
+# vim .env  # 设置 ANTHROPIC_API_KEY=your-key-here
 ```
 
 ### 3. 启动服务
@@ -34,10 +37,11 @@ python3 main.py
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| **🏠 主页** | http://localhost:8000 | RAG知识库界面 |
+| **🏠 Web界面** | http://localhost:8000 | RAG知识库主界面 |
+| **📤 文档上传** | http://localhost:8000/#upload | 上传文档页面 |
+| **💬 智能问答** | http://localhost:8000/#chat | 问答聊天界面 |
 | **📚 API文档** | http://localhost:8000/docs | 接口文档 |
 | **💚 健康检查** | http://localhost:8000/health | 系统状态 |
-| **🗄️ Qdrant UI** | http://localhost:6333/dashboard | 向量数据库 |
 
 ## 🔧 必需组件
 
@@ -59,14 +63,22 @@ python3 main.py
 # 检查服务状态
 curl http://localhost:8000/health
 
+# 测试文档上传
+curl -X POST http://localhost:8000/api/v1/documents/upload \
+  -F "file=@test_document.txt"
+
 # 测试问答功能
 curl -X POST http://localhost:8000/api/v1/chat/ask \
   -H "Content-Type: application/json" \
   -d '{"query": "什么是RAG技术？"}'
+
+# 使用工具检查知识库
+python3 test_kb.py
 ```
 
 ## 🛠️ 管理命令
 
+### 服务管理
 ```bash
 # 查看状态
 ./scripts/start-services.sh status
@@ -81,6 +93,18 @@ curl -X POST http://localhost:8000/api/v1/chat/ask \
 ./scripts/start-services.sh restart
 ```
 
+### 工具脚本
+```bash
+# 查看上传的文档
+python3 list_documents.py
+
+# 查看知识图谱数据
+python3 view_graph.py
+
+# 测试知识库功能
+python3 test_kb.py
+```
+
 ## ❓ 常见问题
 
 **Q: 端口被占用怎么办？**
@@ -90,11 +114,16 @@ lsof -i :8000
 # 杀死占用进程或修改配置文件端口
 ```
 
-**Q: API调用失败？**
+**Q: Claude API调用失败？**
 ```bash
-# 检查API密钥配置
-grep ANTHROPIC_AUTH_TOKEN .env
-# 确保设置了有效的Claude API密钥
+# 方法1: 检查本机Claude CLI
+which claude
+
+# 方法2: 检查API密钥配置
+grep ANTHROPIC_API_KEY .env
+
+# 测试Claude连接
+python3 -c "from src.core.llm_providers import ClaudeProvider; import asyncio; print(asyncio.run(ClaudeProvider().generate_response('hello')))"
 ```
 
 **Q: 内存不够？**

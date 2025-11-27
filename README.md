@@ -1,10 +1,40 @@
 # 企业级RAG知识库系统
 
-基于LightRAG的企业级检索增强生成（RAG）知识库系统，使用中文作为第一语言，专为企业场景设计。
+基于LightRAG架构的企业级检索增强生成（RAG）知识库系统，集成Claude API、向量检索、知识图谱等先进技术，专为中文企业场景设计。
 
 ## 系统概述
 
-本系统是一个完整的企业级RAG解决方案，集成了知识图谱、向量检索、多模态处理等先进技术，为企业提供智能化的知识管理和问答服务。
+本系统是一个完整的企业级RAG解决方案，实现了文档智能处理、混合检索、知识图谱构建和智能问答功能，为企业提供高效的知识管理和AI助手服务。
+
+## ✨ 最新功能
+
+### 🤖 Claude API集成
+- **智能问答**: 基于Claude-3.5-Sonnet的高质量回答生成
+- **本机命令支持**: 自动检测并使用本机claude命令，绕过网络限制和认证问题
+- **无缝集成**: 通过subprocess调用本机claude实现稳定的API访问
+- **错误处理**: 完善的异常处理和日志记录机制
+
+### 📚 文档处理
+- **自动处理**: 上传后通过asyncio.create_task()异步处理文档
+- **多格式支持**: PDF、Word、文本、Markdown、HTML等格式
+- **异步处理**: 非阻塞后台处理，上传后立即返回文档ID
+- **实时状态**: 支持查看文档处理状态和知识库统计
+
+### 🔍 智能检索
+- **混合检索**: 向量检索 + 知识图谱检索 + 全文检索
+- **语义理解**: 基于embedding的语义相似度匹配
+- **关系推理**: 通过知识图谱理解实体间关系
+
+### 🕸️ 知识图谱
+- **自动构建**: 基于LLM自动抽取实体和关系
+- **图谱查询**: 支持实体查询和关系遍历
+- **可视化**: 提供图谱数据查看和分析工具
+
+### 🌐 Web界面
+- **文档上传**: 拖拽上传，支持多种格式，即时反馈
+- **智能问答**: 实时对话界面，直接调用Claude API进行知识库问答
+- **统计面板**: 实时显示文档数量、实体关系等知识库统计
+- **工具集成**: 内置文档列表查看和知识图谱数据浏览
 
 ## 核心特性
 
@@ -100,24 +130,26 @@
 git clone https://github.com/xiaoweizha/xiaoweizha.github.io.git
 cd xiaoweizha.github.io
 
-# 2. 配置环境
-cp .env.production .env
-# 编辑 .env 文件，设置 ANTHROPIC_AUTH_TOKEN
-
-# 3. 启动服务
+# 2. 启动依赖服务
 ./scripts/start-services.sh core -d
+
+# 3. 安装Python依赖
+pip install -r requirements.txt
+
+# 4. 启动系统
 python3 main.py
 
-# 4. 访问系统
-# 主页: http://localhost:8000
-# API: http://localhost:8000/docs
+# 5. 访问系统
+# Web界面: http://localhost:8000
+# API文档: http://localhost:8000/docs
+# 上传文档: http://localhost:8000/#upload
 ```
 
 ### 💻 环境要求
 - Python 3.9+
 - Docker & Docker Compose
 - 8GB+ 内存（推荐16GB+）
-- Claude API密钥
+- 本机安装Claude CLI或有效的Claude API访问
 
 ### 配置说明
 
@@ -161,51 +193,50 @@ database:
 
 ### 1. 知识库管理
 
-#### 文档上传
-```python
-from rag_system import KnowledgeBase
-
-kb = KnowledgeBase()
-
-# 上传单个文档
-result = kb.upload_document("path/to/document.pdf")
-
-# 批量上传
-result = kb.batch_upload("path/to/documents/")
-
-# 支持格式：PDF, DOCX, TXT, MD, HTML, PPT, XLS
+#### Web界面上传
+```
+1. 访问 http://localhost:8000
+2. 点击"上传文档"或拖拽文件到上传区域
+3. 支持格式：PDF, DOCX, TXT, MD, HTML等
+4. 上传后系统自动处理，生成文档ID
+5. 处理完成后可进行知识库问答
 ```
 
-#### 知识图谱构建
-```python
-# 自动构建知识图谱
-kb.build_knowledge_graph(
-    extract_entities=True,
-    extract_relations=True,
-    merge_similar=True
-)
+#### 命令行查看文档
+```bash
+# 查看所有文档
+python3 list_documents.py
 
-# 查看图谱统计
-stats = kb.get_graph_stats()
-print(f"实体数量: {stats['entities']}")
-print(f"关系数量: {stats['relations']}")
+# 查看特定文档详情
+python3 list_documents.py <document_id>
+```
+
+#### 知识图谱查看
+```bash
+# 查看图谱概览和统计
+python3 view_graph.py
+
+# 搜索特定实体
+python3 view_graph.py "机器学习"
+
+# 简单查看图谱（如果Neo4j连接有问题）
+python3 simple_graph_view.py
 ```
 
 ### 2. 智能问答
 
-#### 基础问答
-```python
-from rag_system import ChatBot
+#### Web界面问答
+```
+1. 访问 http://localhost:8000
+2. 在聊天界面输入问题
+3. 系统自动基于知识库内容回答
+4. 支持上下文对话和多轮问答
+```
 
-bot = ChatBot()
-
-# 单轮问答
-answer = bot.ask("什么是RAG技术？")
-
-# 多轮对话
-session = bot.create_session()
-answer1 = session.ask("介绍一下机器学习")
-answer2 = session.ask("它有哪些应用场景？")
+#### 测试知识库
+```bash
+# 测试知识库是否正常工作
+python3 test_kb.py
 ```
 
 #### 高级检索

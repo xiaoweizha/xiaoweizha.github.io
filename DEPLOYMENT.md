@@ -105,12 +105,16 @@ cp .env.production .env
 vim .env
 ```
 
-#### 3.2 必需配置项
+#### 3.2 Claude API配置
 ```bash
-# === LLM配置 ===
-LLM_PROVIDER=anthropic
-ANTHROPIC_AUTH_TOKEN=your-claude-api-key-here
-ANTHROPIC_BEDROCK_BASE_URL=https://api.anthropic.com
+# === Claude CLI方式（推荐）===
+# 系统会自动检测本机安装的Claude CLI
+# 安装Claude CLI：
+# curl -sSf https://install.anthropic.com | sh
+
+# === 传统API方式（备用）===
+ANTHROPIC_API_KEY=your-claude-api-key-here
+ANTHROPIC_BASE_URL=https://api.anthropic.com
 
 # === 数据库密码（生产环境必须修改） ===
 MONGODB_PASSWORD=your-strong-mongodb-password
@@ -131,14 +135,17 @@ SSL_ENABLED=true
 #### 方式 A：一键快速部署（推荐新手）
 
 ```bash
-# 启动核心服务（最小化部署）
+# 1. 启动依赖服务
 chmod +x scripts/start-services.sh
 ./scripts/start-services.sh core -d
 
-# 等待服务启动（约2-5分钟）
+# 2. 安装Python依赖
+pip3 install -r requirements.txt
+
+# 3. 等待服务启动（约2-5分钟）
 ./scripts/start-services.sh status
 
-# 启动应用
+# 4. 启动应用
 python3 main.py
 ```
 
@@ -184,10 +191,11 @@ python3 main.py
 
 | 服务 | 地址 | 用途 | 认证 |
 |------|------|------|------|
-| **主应用** | http://localhost:8000 | RAG知识库主界面 | - |
+| **Web界面** | http://localhost:8000 | RAG知识库Web界面 | - |
+| **文档上传** | http://localhost:8000/#upload | 文档上传页面 | - |
+| **智能问答** | http://localhost:8000/#chat | 智能问答界面 | - |
 | **API文档** | http://localhost:8000/docs | Swagger API文档 | - |
 | **健康检查** | http://localhost:8000/health | 系统健康状态 | - |
-| **系统信息** | http://localhost:8000/system/info | 系统配置信息 | - |
 
 ### 数据库管理
 
@@ -236,13 +244,17 @@ docker ps
 # API健康检查
 curl http://localhost:8000/health
 
-# 数据库连接检查
-curl http://localhost:8000/system/info
+# 文档上传测试
+curl -X POST http://localhost:8000/api/v1/documents/upload \
+  -F "file=@test_document.txt"
 
-# 完整功能测试
+# 智能问答测试
 curl -X POST http://localhost:8000/api/v1/chat/ask \
   -H "Content-Type: application/json" \
-  -d '{"query": "什么是RAG技术？", "mode": "hybrid"}'
+  -d '{"query": "什么是RAG技术？"}'
+
+# 知识库状态检查
+python3 test_kb.py
 ```
 
 ### 3. 预期响应
@@ -280,6 +292,38 @@ curl -X POST http://localhost:8000/api/v1/chat/ask \
     "qdrant": "connected"
   }
 }
+```
+
+## 🧰 工具脚本使用
+
+### 文档管理工具
+
+```bash
+# 查看已上传的文档列表
+python3 list_documents.py
+
+# 查看特定文档详情
+python3 list_documents.py <document_id>
+```
+
+### 知识图谱查看工具
+
+```bash
+# 查看完整图谱统计和数据
+python3 view_graph.py
+
+# 搜索特定实体
+python3 view_graph.py "机器学习"
+
+# 简化版图谱查看（Neo4j连接问题时使用）
+python3 simple_graph_view.py
+```
+
+### 知识库测试工具
+
+```bash
+# 测试知识库是否正常工作
+python3 test_kb.py
 ```
 
 ## 🛠️ 运维管理
@@ -380,22 +424,26 @@ export ES_JAVA_OPTS="-Xms512m -Xmx512m"
 ./scripts/start-services.sh core -d  # 仅启动核心服务
 ```
 
-### 3. API密钥配置
+### 3. Claude API配置
 
-**问题**: LLM调用失败
+**问题**: Claude API调用失败
 ```bash
-HTTP 401: Invalid API key
+HTTP 401: Invalid API key 或 Claude响应为空
 ```
 
 **解决**:
 ```bash
-# 检查环境变量
-echo $ANTHROPIC_AUTH_TOKEN
+# 方案1: 使用本机Claude CLI（推荐）
+which claude
+# 如果没有安装，运行：
+curl -sSf https://install.anthropic.com | sh
 
-# 重新配置API密钥
+# 方案2: 检查API密钥配置
+echo $ANTHROPIC_API_KEY
 vim .env
-# 重启服务
-docker-compose restart rag-api
+
+# 测试Claude连接
+python3 -c "from src.core.llm_providers import ClaudeProvider; import asyncio; print(asyncio.run(ClaudeProvider().generate_response('hello')))"
 ```
 
 ### 4. 数据库连接失败

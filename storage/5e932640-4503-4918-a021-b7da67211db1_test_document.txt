@@ -1,0 +1,60 @@
+企业级RAG知识库系统测试文档
+
+## 系统简介
+
+企业级RAG（Retrieval-Augmented Generation）知识库系统是一个基于LightRAG架构构建的智能问答系统。
+
+## 核心功能
+
+1. **多模式检索技术**
+   - 向量检索：基于语义相似度的文档检索
+   - 知识图谱检索：基于实体关系的结构化检索
+   - 全文检索：基于关键词匹配的精确检索
+   - 混合检索：结合多种检索方式的综合检索
+
+2. **智能文档处理**
+   - 支持多种文档格式：PDF、DOCX、TXT等
+   - 自动文档分块和预处理
+   - 文档向量化和索引构建
+
+3. **知识图谱构建**
+   - 自动实体识别和抽取
+   - 关系识别和图谱构建
+   - 图数据库存储和查询
+
+4. **企业级安全**
+   - JWT认证机制
+   - 权限控制系统
+   - 数据加密传输
+
+## 技术架构
+
+### 后端技术栈
+- 框架：FastAPI + Python 3.9+
+- AI框架：LangChain + LightRAG
+- 数据库：MongoDB + Qdrant + Neo4j + Redis + Elasticsearch
+
+### 前端技术栈  
+- 技术：HTML + CSS + JavaScript
+- 设计系统：Design Tokens
+- 响应式设计
+
+### 部署方案
+- 容器化：Docker + Docker Compose
+- 负载均衡：Nginx
+- 监控：Prometheus + Grafana
+
+## 使用方法
+
+1. 上传文档到知识库
+2. 系统自动处理和索引文档
+3. 通过自然语言提问
+4. 获得基于知识库的智能回答
+
+## 测试问题
+
+Q: 这个系统支持哪些文档格式？
+A: 支持PDF、DOCX、TXT等多种格式。
+
+Q: 系统使用了哪些数据库？
+A: 使用MongoDB、Qdrant、Neo4j、Redis、Elasticsearch等数据库。
