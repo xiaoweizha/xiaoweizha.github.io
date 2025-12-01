@@ -7,6 +7,7 @@
 from typing import List, Dict, Any, Optional, Tuple
 from abc import ABC, abstractmethod
 import json
+import asyncio
 
 from ..utils.logger import get_logger
 from ..utils.config import get_config
@@ -69,29 +70,91 @@ class Neo4jGraphStore(GraphStoreBase):
     async def initialize(self):
         """初始化Neo4j连接"""
         try:
-            # TODO: 实际的Neo4j驱动初始化
-            # from neo4j import GraphDatabase
-            # self.driver = GraphDatabase.driver(
-            #     self.config.neo4j_uri,
-            #     auth=(self.config.neo4j_username, self.config.neo4j_password)
-            # )
+            from neo4j import GraphDatabase
+            import asyncio
+
+            # 初始化Neo4j驱动
+            neo4j_uri = getattr(self.config, 'neo4j_uri', 'bolt://localhost:7687')
+            neo4j_user = getattr(self.config, 'neo4j_username', 'neo4j')
+            neo4j_password = getattr(self.config, 'neo4j_password', 'password')
+
+            self.driver = GraphDatabase.driver(
+                neo4j_uri,
+                auth=(neo4j_user, neo4j_password)
+            )
+
+            # 测试连接
+            def _test_connection():
+                with self.driver.session() as session:
+                    result = session.run("RETURN 1 as num")
+                    return result.single()["num"] == 1
+
+            # 在线程池中执行同步操作
+            success = await asyncio.to_thread(_test_connection)
+
+            if success:
+                # 创建索引以提升查询性能
+                await self._create_indexes()
+
             logger.info("Neo4j图存储初始化成功")
             return True
+
         except Exception as e:
             logger.error("Neo4j初始化失败", error=str(e))
             return False
 
+    async def _create_indexes(self):
+        """创建必要的索引"""
+        try:
+            def _create_indexes_sync():
+                with self.driver.session() as session:
+                    # 为实体ID创建索引
+                    session.run("CREATE INDEX entity_id_index IF NOT EXISTS FOR (e:Entity) ON (e.id)")
+                    # 为文档ID创建索引
+                    session.run("CREATE INDEX document_id_index IF NOT EXISTS FOR (d:Document) ON (d.document_id)")
+                    # 为主题名称创建索引
+                    session.run("CREATE INDEX topic_name_index IF NOT EXISTS FOR (t:Topic) ON (t.name)")
+
+            await asyncio.to_thread(_create_indexes_sync)
+            logger.info("Neo4j索引创建完成")
+
+        except Exception as e:
+            logger.warning("创建Neo4j索引时出现警告", error=str(e))
+
     async def add_entity(self, entity: Dict[str, Any]) -> str:
         """添加实体到Neo4j"""
         try:
+            if not self.driver:
+                raise RuntimeError("Neo4j驱动未初始化")
+
             entity_id = entity.get("id", f"entity_{hash(str(entity))}")
             entity_type = entity.get("type", "Entity")
             properties = entity.get("properties", {})
 
-            # TODO: 实际的Cypher查询
-            # cypher = f"CREATE (e:{entity_type} {{id: $id, name: $name}}) RETURN e.id"
-            logger.info(f"添加实体: {entity_id}")
-            return entity_id
+            # 准备属性，确保所有值都是可序列化的
+            safe_properties = {"id": entity_id}
+            for key, value in properties.items():
+                if isinstance(value, (str, int, float, bool)):
+                    safe_properties[key] = value
+                else:
+                    safe_properties[key] = str(value)
+
+            def _add_entity_sync():
+                with self.driver.session() as session:
+                    # 使用MERGE确保实体唯一性
+                    cypher = f"""
+                    MERGE (e:{entity_type} {{id: $id}})
+                    SET e += $properties
+                    RETURN e.id as entity_id
+                    """
+                    result = session.run(cypher, id=entity_id, properties=safe_properties)
+                    return result.single()["entity_id"]
+
+            # 在线程池中执行
+            result_id = await asyncio.to_thread(_add_entity_sync)
+
+            logger.debug(f"添加实体成功: {entity_id}")
+            return result_id
 
         except Exception as e:
             logger.error("添加实体失败", error=str(e))
@@ -100,14 +163,53 @@ class Neo4jGraphStore(GraphStoreBase):
     async def add_relation(self, relation: Dict[str, Any]) -> str:
         """添加关系到Neo4j"""
         try:
+            if not self.driver:
+                raise RuntimeError("Neo4j驱动未初始化")
+
             from_entity = relation.get("from_entity")
             to_entity = relation.get("to_entity")
-            relation_type = relation.get("type", "RELATED_TO")
+            relation_type = relation.get("type", "RELATED_TO").upper()
             properties = relation.get("properties", {})
 
-            # TODO: 实际的Cypher查询
-            logger.info(f"添加关系: {from_entity} -> {to_entity}")
-            return f"{from_entity}_{relation_type}_{to_entity}"
+            if not from_entity or not to_entity:
+                raise ValueError("from_entity和to_entity都必须提供")
+
+            # 准备属性
+            safe_properties = {}
+            for key, value in properties.items():
+                if isinstance(value, (str, int, float, bool)):
+                    safe_properties[key] = value
+                else:
+                    safe_properties[key] = str(value)
+
+            def _add_relation_sync():
+                with self.driver.session() as session:
+                    # 创建关系，确保两个实体都存在
+                    cypher = f"""
+                    MATCH (a {{id: $from_entity}})
+                    MATCH (b {{id: $to_entity}})
+                    MERGE (a)-[r:{relation_type}]->(b)
+                    SET r += $properties
+                    RETURN id(r) as relation_id
+                    """
+                    result = session.run(
+                        cypher,
+                        from_entity=from_entity,
+                        to_entity=to_entity,
+                        properties=safe_properties
+                    )
+                    record = result.single()
+                    return record["relation_id"] if record else None
+
+            # 在线程池中执行
+            relation_id = await asyncio.to_thread(_add_relation_sync)
+
+            if relation_id is None:
+                logger.warning(f"关系创建可能失败: {from_entity} -> {to_entity}")
+                return f"{from_entity}_{relation_type}_{to_entity}"
+
+            logger.debug(f"添加关系成功: {from_entity} -> {to_entity}")
+            return str(relation_id)
 
         except Exception as e:
             logger.error("添加关系失败", error=str(e))
@@ -121,17 +223,58 @@ class Neo4jGraphStore(GraphStoreBase):
     ) -> List[Dict[str, Any]]:
         """查询实体"""
         try:
-            # TODO: 实际的Cypher查询
-            # 返回模拟结果
-            results = []
-            for i in range(min(limit, 5)):
-                results.append({
-                    "id": f"entity_{i}",
-                    "type": entity_type or "Entity",
-                    "name": f"实体{i+1}",
-                    "properties": {"description": f"这是实体{i+1}的描述"}
-                })
+            if not self.driver:
+                raise RuntimeError("Neo4j驱动未初始化")
 
+            def _query_entities_sync():
+                with self.driver.session() as session:
+                    # 构建Cypher查询
+                    cypher_parts = []
+                    params = {"limit": limit}
+
+                    if entity_type:
+                        cypher_parts.append(f"MATCH (e:{entity_type})")
+                    else:
+                        cypher_parts.append("MATCH (e)")
+
+                    # 添加过滤条件
+                    where_conditions = []
+                    if filters:
+                        for key, value in filters.items():
+                            if key != "id":  # id通常需要特殊处理
+                                param_name = f"filter_{key}"
+                                where_conditions.append(f"e.{key} = ${param_name}")
+                                params[param_name] = value
+
+                    if where_conditions:
+                        cypher_parts.append("WHERE " + " AND ".join(where_conditions))
+
+                    cypher_parts.append("RETURN e, labels(e) as labels")
+                    cypher_parts.append("LIMIT $limit")
+
+                    cypher = " ".join(cypher_parts)
+
+                    result = session.run(cypher, **params)
+                    entities = []
+
+                    for record in result:
+                        node = record["e"]
+                        labels = record["labels"]
+
+                        entity = {
+                            "id": node.get("id", ""),
+                            "type": labels[0] if labels else "Entity",
+                            "labels": labels,
+                            "properties": dict(node)
+                        }
+                        entities.append(entity)
+
+                    return entities
+
+            # 在线程池中执行
+            results = await asyncio.to_thread(_query_entities_sync)
+
+            logger.debug(f"查询实体完成，找到{len(results)}个结果")
             return results
 
         except Exception as e:
@@ -147,17 +290,61 @@ class Neo4jGraphStore(GraphStoreBase):
     ) -> List[Dict[str, Any]]:
         """查询关系"""
         try:
-            # TODO: 实际的Cypher查询
-            results = []
-            for i in range(min(limit, 3)):
-                results.append({
-                    "id": f"relation_{i}",
-                    "from_entity": from_entity or f"entity_{i}",
-                    "to_entity": to_entity or f"entity_{i+1}",
-                    "type": relation_type or "RELATED_TO",
-                    "properties": {"weight": 0.8 + i * 0.1}
-                })
+            if not self.driver:
+                raise RuntimeError("Neo4j驱动未初始化")
 
+            def _query_relations_sync():
+                with self.driver.session() as session:
+                    # 构建Cypher查询
+                    cypher_parts = []
+                    params = {"limit": limit}
+
+                    # 构建匹配模式
+                    if from_entity and to_entity:
+                        # 查询特定两个实体之间的关系
+                        cypher_parts.append("MATCH (a {id: $from_entity})-[r]->(b {id: $to_entity})")
+                        params["from_entity"] = from_entity
+                        params["to_entity"] = to_entity
+                    elif from_entity:
+                        # 查询从特定实体出发的关系
+                        cypher_parts.append("MATCH (a {id: $from_entity})-[r]->(b)")
+                        params["from_entity"] = from_entity
+                    elif to_entity:
+                        # 查询指向特定实体的关系
+                        cypher_parts.append("MATCH (a)-[r]->(b {id: $to_entity})")
+                        params["to_entity"] = to_entity
+                    else:
+                        # 查询所有关系
+                        cypher_parts.append("MATCH (a)-[r]->(b)")
+
+                    # 添加关系类型过滤
+                    if relation_type:
+                        cypher_parts[0] = cypher_parts[0].replace("-[r]->", f"-[r:{relation_type.upper()}]->")
+
+                    cypher_parts.append("RETURN a.id as from_entity, b.id as to_entity, type(r) as relation_type, properties(r) as properties, id(r) as relation_id")
+                    cypher_parts.append("LIMIT $limit")
+
+                    cypher = " ".join(cypher_parts)
+
+                    result = session.run(cypher, **params)
+                    relations = []
+
+                    for record in result:
+                        relation = {
+                            "id": str(record["relation_id"]),
+                            "from_entity": record["from_entity"],
+                            "to_entity": record["to_entity"],
+                            "type": record["relation_type"],
+                            "properties": record["properties"] or {}
+                        }
+                        relations.append(relation)
+
+                    return relations
+
+            # 在线程池中执行
+            results = await asyncio.to_thread(_query_relations_sync)
+
+            logger.debug(f"查询关系完成，找到{len(results)}个结果")
             return results
 
         except Exception as e:
@@ -172,18 +359,62 @@ class Neo4jGraphStore(GraphStoreBase):
     ) -> List[List[Dict[str, Any]]]:
         """查找实体间路径"""
         try:
-            # TODO: 实际的路径查找逻辑
-            paths = []
-            if start_entity != end_entity:
-                # 模拟路径
-                path = [
-                    {"entity": start_entity, "type": "Entity"},
-                    {"relation": "CONNECTED_TO", "weight": 0.9},
-                    {"entity": end_entity, "type": "Entity"}
-                ]
-                paths.append(path)
+            if not self.driver:
+                raise RuntimeError("Neo4j驱动未初始化")
 
-            return paths
+            def _find_path_sync():
+                with self.driver.session() as session:
+                    # 使用Neo4j的最短路径算法
+                    cypher = f"""
+                    MATCH path = shortestPath(
+                        (start {{id: $start_entity}})-[*1..{max_depth}]-(end {{id: $end_entity}})
+                    )
+                    WHERE start.id <> end.id
+                    RETURN path
+                    LIMIT 10
+                    """
+
+                    result = session.run(cypher, start_entity=start_entity, end_entity=end_entity)
+                    paths = []
+
+                    for record in result:
+                        path_data = record["path"]
+                        path_elements = []
+
+                        # 解析路径中的节点和关系
+                        nodes = path_data.nodes
+                        relationships = path_data.relationships
+
+                        for i, node in enumerate(nodes):
+                            # 添加节点
+                            element = {
+                                "type": "entity",
+                                "id": node.get("id", ""),
+                                "labels": list(node.labels),
+                                "properties": dict(node)
+                            }
+                            path_elements.append(element)
+
+                            # 添加关系（如果不是最后一个节点）
+                            if i < len(relationships):
+                                rel = relationships[i]
+                                rel_element = {
+                                    "type": "relation",
+                                    "relation_type": rel.type,
+                                    "properties": dict(rel)
+                                }
+                                path_elements.append(rel_element)
+
+                        if path_elements:
+                            paths.append(path_elements)
+
+                    return paths
+
+            # 在线程池中执行
+            results = await asyncio.to_thread(_find_path_sync)
+
+            logger.debug(f"路径查找完成，找到{len(results)}条路径")
+            return results
 
         except Exception as e:
             logger.error("路径查找失败", error=str(e))
@@ -285,13 +516,42 @@ class GraphStore:
             return {"status": "未初始化", "entities": 0, "relations": 0}
 
         try:
-            # TODO: 实际的统计查询
+            def _get_statistics_sync():
+                with self.store.driver.session() as session:
+                    # 统计实体数量
+                    entity_result = session.run("MATCH (n) RETURN count(n) as entity_count")
+                    entity_count = entity_result.single()["entity_count"]
+
+                    # 统计关系数量
+                    relation_result = session.run("MATCH ()-[r]->() RETURN count(r) as relation_count")
+                    relation_count = relation_result.single()["relation_count"]
+
+                    # 统计不同类型的实体
+                    type_result = session.run("MATCH (n) RETURN labels(n) as labels, count(n) as count")
+                    entity_types = {}
+                    for record in type_result:
+                        labels = record["labels"]
+                        count = record["count"]
+                        if labels:
+                            entity_types[labels[0]] = count
+
+                    return {
+                        "entity_count": entity_count,
+                        "relation_count": relation_count,
+                        "entity_types": entity_types
+                    }
+
+            # 在线程池中执行
+            stats = await asyncio.to_thread(_get_statistics_sync)
+
             return {
                 "status": "正常",
                 "type": self.store_type,
-                "entities": 500,  # 模拟数据
-                "relations": 1200
+                "entities": stats["entity_count"],
+                "relations": stats["relation_count"],
+                "entity_types": stats["entity_types"]
             }
+
         except Exception as e:
             logger.error("获取图统计失败", error=str(e))
             return {"status": "异常", "error": str(e)}

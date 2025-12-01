@@ -60,15 +60,37 @@ class QdrantVectorStore(VectorStoreBase):
     async def initialize(self):
         """初始化连接"""
         try:
-            # TODO: 实际的Qdrant客户端初始化
-            # from qdrant_client import QdrantClient
-            # self.client = QdrantClient(
-            #     host=self.config.qdrant_host,
-            #     port=self.config.qdrant_port,
-            #     api_key=self.config.qdrant_api_key
-            # )
+            from qdrant_client import QdrantClient
+            from qdrant_client.models import Distance, VectorParams, PointStruct, CreateCollection
+
+            # 初始化Qdrant客户端
+            self.client = QdrantClient(
+                host=getattr(self.config, 'qdrant_host', 'localhost'),
+                port=getattr(self.config, 'qdrant_port', 6333),
+                api_key=getattr(self.config, 'qdrant_api_key', None)
+            )
+
+            # 检查集合是否存在，不存在则创建
+            collections = await asyncio.to_thread(self.client.get_collections)
+            collection_names = [col.name for col in collections.collections]
+
+            if self.collection_name not in collection_names:
+                await asyncio.to_thread(
+                    self.client.create_collection,
+                    collection_name=self.collection_name,
+                    vectors_config=VectorParams(
+                        size=1536,  # 默认OpenAI embedding维度
+                        distance=Distance.COSINE
+                    )
+                )
+                logger.info(f"创建Qdrant集合: {self.collection_name}")
+
+            # 测试连接
+            await asyncio.to_thread(self.client.get_collection, self.collection_name)
+
             logger.info("Qdrant向量存储初始化成功")
             return True
+
         except Exception as e:
             logger.error("Qdrant初始化失败", error=str(e))
             return False
@@ -81,11 +103,37 @@ class QdrantVectorStore(VectorStoreBase):
     ) -> List[str]:
         """添加向量到Qdrant"""
         try:
-            if not ids:
-                ids = [f"vec_{i}" for i in range(len(vectors))]
+            if not self.client:
+                raise RuntimeError("Qdrant客户端未初始化")
 
-            # TODO: 实际的Qdrant插入逻辑
-            logger.info(f"添加{len(vectors)}个向量到Qdrant")
+            if not ids:
+                import uuid
+                ids = [str(uuid.uuid4()) for _ in range(len(vectors))]
+
+            # 构建Qdrant点数据
+            from qdrant_client.models import PointStruct
+
+            points = []
+            for i, (vector, metadata, point_id) in enumerate(zip(vectors, metadatas, ids)):
+                # 确保向量是正确的格式
+                if isinstance(vector, np.ndarray):
+                    vector = vector.tolist()
+
+                point = PointStruct(
+                    id=point_id,
+                    vector=vector,
+                    payload=metadata
+                )
+                points.append(point)
+
+            # 批量插入
+            await asyncio.to_thread(
+                self.client.upsert,
+                collection_name=self.collection_name,
+                points=points
+            )
+
+            logger.info(f"成功添加{len(vectors)}个向量到Qdrant")
             return ids
 
         except Exception as e:
@@ -100,20 +148,51 @@ class QdrantVectorStore(VectorStoreBase):
     ) -> List[Dict[str, Any]]:
         """在Qdrant中搜索向量"""
         try:
-            # TODO: 实际的Qdrant搜索逻辑
-            # 返回模拟结果
-            results = []
-            for i in range(min(top_k, 3)):
-                results.append({
-                    "id": f"result_{i}",
-                    "score": 0.9 - i * 0.1,
-                    "metadata": {
-                        "title": f"文档{i+1}",
-                        "content": f"这是文档{i+1}的内容...",
-                        "chunk_id": f"chunk_{i}"
-                    }
-                })
+            if not self.client:
+                raise RuntimeError("Qdrant客户端未初始化")
 
+            # 确保查询向量是正确格式
+            if isinstance(query_vector, np.ndarray):
+                query_vector = query_vector.tolist()
+
+            # 构建搜索请求
+            from qdrant_client.models import Filter, FieldCondition, MatchValue
+
+            search_filter = None
+            if filters:
+                conditions = []
+                for key, value in filters.items():
+                    if isinstance(value, str):
+                        conditions.append(
+                            FieldCondition(key=key, match=MatchValue(value=value))
+                        )
+                    # 可以扩展更多过滤条件类型
+
+                if conditions:
+                    search_filter = Filter(must=conditions)
+
+            # 执行搜索
+            search_result = await asyncio.to_thread(
+                self.client.search,
+                collection_name=self.collection_name,
+                query_vector=query_vector,
+                limit=top_k,
+                query_filter=search_filter,
+                with_payload=True,
+                score_threshold=0.0  # 可以配置最小相似度阈值
+            )
+
+            # 转换结果格式
+            results = []
+            for hit in search_result:
+                result = {
+                    "id": hit.id,
+                    "score": float(hit.score),
+                    "metadata": hit.payload if hit.payload else {}
+                }
+                results.append(result)
+
+            logger.debug(f"向量搜索完成，找到{len(results)}个结果")
             return results
 
         except Exception as e:
@@ -123,9 +202,22 @@ class QdrantVectorStore(VectorStoreBase):
     async def delete_vectors(self, ids: List[str]) -> bool:
         """从Qdrant删除向量"""
         try:
-            # TODO: 实际的删除逻辑
-            logger.info(f"删除{len(ids)}个向量")
+            if not self.client:
+                raise RuntimeError("Qdrant客户端未初始化")
+
+            if not ids:
+                return True
+
+            # 批量删除
+            await asyncio.to_thread(
+                self.client.delete,
+                collection_name=self.collection_name,
+                points_selector=ids
+            )
+
+            logger.info(f"成功删除{len(ids)}个向量")
             return True
+
         except Exception as e:
             logger.error("删除向量失败", error=str(e))
             return False
@@ -133,8 +225,17 @@ class QdrantVectorStore(VectorStoreBase):
     async def get_vector_count(self) -> int:
         """获取向量数量"""
         try:
-            # TODO: 实际的统计逻辑
-            return 1000  # 模拟返回
+            if not self.client:
+                raise RuntimeError("Qdrant客户端未初始化")
+
+            # 获取集合信息
+            collection_info = await asyncio.to_thread(
+                self.client.get_collection,
+                collection_name=self.collection_name
+            )
+
+            return collection_info.points_count or 0
+
         except Exception as e:
             logger.error("获取向量数量失败", error=str(e))
             return 0

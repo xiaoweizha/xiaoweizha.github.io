@@ -56,9 +56,11 @@ class VectorRetriever(RetrieverBase):
     ) -> List[RetrievalResult]:
         """向量检索"""
         try:
-            # TODO: 实际的查询向量化
-            # 这里需要调用embedding模型将query转换为向量
-            query_vector = [0.1] * 1536  # 模拟查询向量
+            # 实际的查询向量化
+            from .embeddings import get_embedding_provider
+
+            embedding_provider = get_embedding_provider()
+            query_vector = await embedding_provider.embed_text(query)
 
             # 执行向量搜索
             vector_results = await self.vector_store.search_vectors(
@@ -141,12 +143,32 @@ class GraphRetriever(RetrieverBase):
 
     async def _extract_entities(self, query: str) -> List[Dict[str, Any]]:
         """从查询中提取实体"""
-        # TODO: 实际的NER实现
-        # 这里返回模拟实体
-        return [
-            {"id": "entity_1", "name": "机器学习", "type": "Concept"},
-            {"id": "entity_2", "name": "深度学习", "type": "Concept"}
-        ]
+        # 简单的关键词匹配实体提取
+        entities = []
+
+        # 定义一些常见的技术实体
+        entity_keywords = {
+            "rag": {"id": "rag_tech", "name": "RAG技术", "type": "Concept"},
+            "向量检索": {"id": "vector_search", "name": "向量检索", "type": "Concept"},
+            "知识图谱": {"id": "knowledge_graph", "name": "知识图谱", "type": "Concept"},
+            "人工智能": {"id": "ai_system", "name": "人工智能", "type": "System"},
+            "机器学习": {"id": "machine_learning", "name": "机器学习", "type": "Concept"},
+            "深度学习": {"id": "deep_learning", "name": "深度学习", "type": "Concept"}
+        }
+
+        query_lower = query.lower()
+        for keyword, entity_info in entity_keywords.items():
+            if keyword.lower() in query_lower:
+                entities.append(entity_info)
+
+        # 如果没找到匹配的实体，返回默认实体
+        if not entities:
+            entities = [
+                {"id": "general_ai", "name": "人工智能", "type": "Concept"},
+                {"id": "general_tech", "name": "技术", "type": "Concept"}
+            ]
+
+        return entities
 
 
 class FulltextRetriever(RetrieverBase):
@@ -312,27 +334,69 @@ class HybridRetriever:
     ) -> List[RetrievalResult]:
         """重新排序结果"""
         try:
-            # TODO: 实际的重排序逻辑
-            # 可以使用更复杂的相关性计算，如交叉编码器
+            # 实现基于多个因子的重排序逻辑
+            from .embeddings import get_embedding_provider
 
-            # 简单的评分调整策略
+            # 获取查询嵌入用于更精确的相似度计算
+            embedding_provider = get_embedding_provider()
+            query_embedding = await embedding_provider.embed_text(query)
+
             for result in results:
-                # 根据来源调整权重
+                # 保存原始分数
+                original_score = result.score
+
+                # 1. 根据来源调整权重
+                source_weight = 1.0
                 if result.source == "vector":
-                    result.score *= 1.0
+                    source_weight = 1.0
                 elif result.source == "graph":
-                    result.score *= 0.9
+                    source_weight = 0.9
                 elif result.source == "fulltext":
-                    result.score *= 0.8
+                    source_weight = 0.8
 
-                # 根据内容长度调整
-                content_length = len(result.content)
-                if content_length > 100:
-                    result.score *= 1.1
-                elif content_length < 50:
-                    result.score *= 0.9
+                # 2. 根据内容质量调整分数
+                content = result.content
+                content_length = len(content)
 
-            # 按分数排序
+                # 内容长度评分 (适中长度得分更高)
+                if 50 <= content_length <= 500:
+                    length_bonus = 1.1
+                elif content_length > 500:
+                    length_bonus = 1.05
+                else:
+                    length_bonus = 0.9
+
+                # 3. 关键词匹配评分
+                query_words = set(query.lower().split())
+                content_words = set(content.lower().split())
+                keyword_overlap = len(query_words.intersection(content_words))
+                keyword_bonus = 1.0 + (keyword_overlap * 0.1)
+
+                # 4. 计算与查询的语义相似度 (如果内容较长值得计算)
+                semantic_bonus = 1.0
+                if content_length > 20:
+                    try:
+                        content_embedding = await embedding_provider.embed_text(content[:500])  # 截断长文本
+                        semantic_similarity = self._cosine_similarity(query_embedding, content_embedding)
+                        semantic_bonus = 1.0 + (semantic_similarity * 0.5)
+                    except:
+                        # 如果计算失败，使用默认值
+                        semantic_bonus = 1.0
+
+                # 5. 综合评分
+                final_score = original_score * source_weight * length_bonus * keyword_bonus * semantic_bonus
+
+                # 更新分数，但保留原始分数供参考
+                result.metadata["original_score"] = original_score
+                result.metadata["rerank_factors"] = {
+                    "source_weight": source_weight,
+                    "length_bonus": length_bonus,
+                    "keyword_bonus": keyword_bonus,
+                    "semantic_bonus": semantic_bonus
+                }
+                result.score = final_score
+
+            # 按最终分数排序
             sorted_results = sorted(results, key=lambda x: x.score, reverse=True)
 
             logger.info(f"重排序完成，调整了{len(results)}个结果")
@@ -341,6 +405,28 @@ class HybridRetriever:
         except Exception as e:
             logger.error("重排序失败", error=str(e))
             return results
+
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """计算余弦相似度"""
+        try:
+            import numpy as np
+
+            v1 = np.array(vec1)
+            v2 = np.array(vec2)
+
+            # 计算余弦相似度
+            dot_product = np.dot(v1, v2)
+            norm1 = np.linalg.norm(v1)
+            norm2 = np.linalg.norm(v2)
+
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+
+            similarity = dot_product / (norm1 * norm2)
+            return max(-1.0, min(1.0, similarity))  # 确保在[-1, 1]范围内
+
+        except:
+            return 0.0
 
     async def get_statistics(self) -> Dict[str, Any]:
         """获取检索器统计信息"""
